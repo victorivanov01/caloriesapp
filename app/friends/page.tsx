@@ -93,7 +93,7 @@ export default function FriendsPage() {
     try {
       const { data: myProf, error: myErr } = await supabase
         .from("profiles")
-        .select("group_code")
+        .select("group_code, display_name")
         .eq("user_id", meId!)
         .maybeSingle();
 
@@ -114,11 +114,11 @@ export default function FriendsPage() {
         return;
       }
 
+      // ✅ INCLUDE ME: removed .neq("user_id", meId!)
       const { data: profs, error: pErr } = await supabase
         .from("profiles")
         .select("user_id, display_name")
-        .eq("group_code", code)
-        .neq("user_id", meId!);
+        .eq("group_code", code);
 
       if (pErr) throw pErr;
 
@@ -129,12 +129,37 @@ export default function FriendsPage() {
         }))
         .sort((a, b) => a.display_name.localeCompare(b.display_name));
 
-      setFriends(list);
+      // ✅ Optional: make your row show as "You" while keeping other names intact
+      const myName = (myProf.display_name ?? "").trim();
+      const listWithYou = list.map((f) =>
+        f.user_id === meId
+          ? {
+              ...f,
+              display_name: myName ? `${myName} (you)` : "You",
+            }
+          : f
+      );
 
-      const valid = new Set(list.map((f) => f.user_id));
+      // ✅ Optional: put you at the top
+      listWithYou.sort((a, b) => {
+        if (a.user_id === meId) return -1;
+        if (b.user_id === meId) return 1;
+        return a.display_name.localeCompare(b.display_name);
+      });
+
+      setFriends(listWithYou);
+
+      // Keep selections that still exist
+      const valid = new Set(listWithYou.map((f) => f.user_id));
       const kept = selectedFriendIds.filter((id) => valid.has(id));
-      if (kept.length > 0) setSelectedFriendIds(kept);
-      else setSelectedFriendIds(list[0] ? [list[0].user_id] : []);
+
+      if (kept.length > 0) {
+        setSelectedFriendIds(kept);
+      } else {
+        // default selection: you (if present) else first in list
+        const you = listWithYou.find((f) => f.user_id === meId);
+        setSelectedFriendIds(you ? [you.user_id] : listWithYou[0] ? [listWithYou[0].user_id] : []);
+      }
     } catch (e: any) {
       setMsg(e?.message ?? "Error");
     } finally {
@@ -277,7 +302,7 @@ export default function FriendsPage() {
             </div>
 
             {friends.length === 0 ? (
-              <p className={styles.muted}>{msg ?? "No friends found yet."}</p>
+              <p className={styles.muted}>{msg ?? "No people found yet."}</p>
             ) : (
               <ul className={styles.friendList}>
                 {friends.map((f) => {
@@ -356,7 +381,7 @@ export default function FriendsPage() {
                     {selectedFriendIds.length === 0 ? (
                       <tr>
                         <td className={styles.td} colSpan={5}>
-                          <span className={styles.muted}>Select one or more friends to view.</span>
+                          <span className={styles.muted}>Select one or more people to view.</span>
                         </td>
                       </tr>
                     ) : (
@@ -386,9 +411,7 @@ export default function FriendsPage() {
             <div className={styles.section}>
               <h2 className={styles.sectionTitle}>Entries</h2>
 
-              {selectedFriendIds.length > 0 && rows.length === 0 ? (
-                <p className={styles.muted}>No entries for this day.</p>
-              ) : null}
+              {selectedFriendIds.length > 0 && rows.length === 0 ? <p className={styles.muted}>No entries for this day.</p> : null}
 
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
@@ -415,9 +438,7 @@ export default function FriendsPage() {
                         <td className={`${styles.td} ${styles.tdNum}`}>{r.carbs_g}</td>
                         <td className={`${styles.td} ${styles.tdNum}`}>{r.fat_g}</td>
                         <td className={`${styles.td} ${styles.tdSmall}`}>
-                          {r.created_at
-                            ? new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                            : ""}
+                          {r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
                         </td>
                       </tr>
                     ))}
