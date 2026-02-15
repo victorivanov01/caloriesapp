@@ -133,7 +133,8 @@ export default function TodayPage() {
         logId = created.id;
       }
 
-      setDailyLogId(logId);
+    setDailyLogId(logId ?? null);
+
 
       const { data: ents, error: eErr } = await supabase
         .from("food_entries")
