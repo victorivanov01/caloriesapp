@@ -1,28 +1,14 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
-function normalizeUsername(raw: string) {
-  // Lowercase, trim, only allow a-z 0-9 underscore, 3..24 chars
-  const u = raw.trim().toLowerCase();
-  if (!/^[a-z0-9_]{3,24}$/.test(u)) {
-    return null;
-  }
-  return u;
-}
-
-function usernameToEmail(username: string) {
-  // Internal-only fake email
-  return `${username}@calories.local`;
-}
-
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = useMemo(() => supabaseBrowser(), []);
+  const supabase = supabaseBrowser();
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [displayName, setDisplayName] = useState("");
@@ -35,7 +21,7 @@ export default function LoginPage() {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) router.replace("/today");
     });
-  }, [router, supabase]);
+  }, [router, supabase.auth]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -43,16 +29,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const u = normalizeUsername(username);
-      if (!u) {
-        throw new Error("Username must be 3-24 chars: letters, numbers, underscore only.");
-      }
-      if (password.length < 6) {
-        throw new Error("Password must be at least 6 characters.");
-      }
-
-      const email = usernameToEmail(u);
-
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -61,23 +37,19 @@ export default function LoginPage() {
       }
 
       // register
-      const dn = displayName.trim() || u;
-
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { display_name: dn } },
+        options: { data: { display_name: displayName } },
       });
 
       if (error) throw error;
 
-      // If confirmations are OFF, session may exist immediately
+      // If email confirmations are ON, user may need to confirm.
+      // If confirmations are OFF, session may exist immediately.
       const session = (await supabase.auth.getSession()).data.session;
-      if (session) {
-        router.replace("/today");
-      } else {
-        setMsg("Account created. If email confirmation is enabled, you must confirm before logging in.");
-      }
+      if (session) router.replace("/today");
+      else setMsg("Registered. Check your email to confirm (if confirmations are enabled).");
     } catch (err: any) {
       setMsg(err?.message ?? "Error");
     } finally {
@@ -109,18 +81,17 @@ export default function LoginPage() {
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Display name (optional)"
+            placeholder="Display name (e.g. Viktor)"
+            required
             style={{ padding: 10 }}
           />
         )}
 
         <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username (letters/numbers/_ , 3-24)"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
+          type="email"
           required
           style={{ padding: 10 }}
         />
@@ -142,7 +113,7 @@ export default function LoginPage() {
       </form>
 
       <p style={{ marginTop: 16, color: "#444" }}>
-        After login: go to <b>Group</b> to set a Group Code and share it with friends.
+        After login: go to <b>Group</b> to create a group + invite friends.
       </p>
     </main>
   );
