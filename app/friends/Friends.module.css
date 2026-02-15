@@ -1,0 +1,164 @@
+.page {
+  font-family: system-ui;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 16px;
+}
+
+.title {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
+
+.layout {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.card {
+  border: 1px solid #333;
+  padding: 12px;
+  flex: 1 1 600px;
+}
+
+.card:first-child {
+  min-width: 300px;
+  flex: 0 0 300px;
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.button {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.friendList {
+  list-style: none;
+  padding: 0;
+  margin-top: 10px;
+}
+
+.friendItem {
+  margin-bottom: 8px;
+}
+
+.friendLabel {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #444;
+  padding: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox {
+  transform: scale(1.1);
+}
+
+.topRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.topRowRight {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dateLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dateInput {
+  padding: 6px;
+}
+
+.totalsInline {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.section {
+  margin-top: 14px;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  margin: 0 0 8px 0;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.th {
+  text-align: left;
+  border-bottom: 1px solid #444;
+  padding: 10px 8px;
+  white-space: nowrap;
+}
+
+.thNum {
+  text-align: right;
+}
+
+.td {
+  border-bottom: 1px solid #333;
+  padding: 10px 8px;
+  vertical-align: top;
+}
+
+.tdNum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tdSmall {
+  white-space: nowrap;
+  font-size: 12px;
+  color: #aaa;
+}
+
+.tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.muted {
+  color: #777;
+  margin-top: 10px;
+}
+
+.error {
+  margin-top: 12px;
+  color: crimson;
+}

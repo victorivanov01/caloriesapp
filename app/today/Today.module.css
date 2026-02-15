@@ -1,0 +1,199 @@
+.page {
+  font-family: system-ui;
+}
+
+.container {
+  max-width: 980px;
+  margin: 24px auto;
+  padding: 16px;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 24px;
+  margin: 0 0 12px 0;
+}
+
+.totalsInline {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.controlsRow {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.dateLabel {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dateInput {
+  padding: 8px;
+}
+
+.switch {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  user-select: none;
+  cursor: pointer;
+}
+
+.weekNav {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.weekTotals {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.section {
+  margin-top: 16px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  font-size: 18px;
+  margin: 0 0 8px 0;
+}
+
+.card {
+  border: 1px solid #333;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.textInput {
+  padding: 10px;
+}
+
+.formRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.numInput {
+  padding: 8px;
+  width: 120px;
+}
+
+.select {
+  padding: 8px;
+  width: 140px;
+}
+
+.button {
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.primaryButton {
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.dangerButton {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.linkButton {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.th {
+  text-align: left;
+  border-bottom: 1px solid #444;
+  padding: 10px 8px;
+  white-space: nowrap;
+}
+
+.thNum {
+  text-align: right;
+}
+
+.td {
+  border-bottom: 1px solid #333;
+  padding: 10px 8px;
+  vertical-align: top;
+}
+
+.tdNum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tdSmall {
+  white-space: nowrap;
+  font-size: 12px;
+  color: #aaa;
+}
+
+.tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.trActive {
+  outline: 2px solid rgba(255, 255, 255, 0.25);
+  outline-offset: -2px;
+}
+
+.muted {
+  color: #777;
+}
+
+.mutedSmall {
+  color: #888;
+  font-size: 12px;
+}
+
+.error {
+  margin-top: 12px;
+  color: crimson;
+}
