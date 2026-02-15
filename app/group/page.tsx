@@ -7,7 +7,7 @@ import { supabaseBrowser } from "@/lib/supabaseClient";
 type Member = {
   user_id: string;
   display_name: string | null;
-  group_code: string | null;
+  group_code?: string | null;
 };
 
 export default function GroupPage() {
@@ -24,43 +24,49 @@ export default function GroupPage() {
   const [loading, setLoading] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
 
-  async function loadMeAndProfile(userId: string) {
-    const { data: prof, error } = await supabase
-      .from("profiles")
-      .select("display_name, group_code")
-      .eq("user_id", userId)
-      .single();
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) {
+        window.location.href = "/login";
+        return;
+      }
 
-    if (!error && prof) {
-      const dn = prof.display_name || "";
-      const gc = prof.group_code || "";
+      const uid = data.user.id;
+      setMeId(uid);
 
-      setDisplayName(dn);
-      setGroupCode(gc);
+      const { data: prof, error } = await supabase
+        .from("profiles")
+        .select("display_name, group_code")
+        .eq("user_id", uid)
+        .single();
 
-      // Default selection includes me
-      setSelectedIds((prev) => (prev.length ? prev : [userId]));
+      if (!error && prof) {
+        setDisplayName(prof.display_name || "");
+        setGroupCode(prof.group_code || "");
+        // default selection includes me
+        setSelectedIds((prev) => (prev.length ? prev : [uid]));
+        // load group members (includes you)
+        await loadMembers(prof.group_code || "", uid, prof.display_name || "");
+      } else {
+        // no profile row yet: still show/select me
+        setSelectedIds((prev) => (prev.length ? prev : [uid]));
+        await loadMembers("", uid, "");
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
 
-      // Load members (if no group code yet, we'll still show "me")
-      await loadMembers(gc, userId, dn);
-    } else {
-      // If profile missing, still show "me"
-      setSelectedIds((prev) => (prev.length ? prev : [userId]));
-      await loadMembers("", userId, "");
-    }
-  }
-
-  async function loadMembers(code: string, userId: string, myDisplayName: string) {
+  async function loadMembers(code: string, uid: string, myName: string) {
     setLoadingMembers(true);
     try {
       const trimmed = (code || "").trim();
 
-      // If no group code, show only me
+      // If no code yet, show just you
       if (!trimmed) {
         setMembers([
           {
-            user_id: userId,
-            display_name: myDisplayName || null,
+            user_id: uid,
+            display_name: myName ? `${myName} (you)` : "You",
             group_code: null,
           },
         ]);
@@ -74,36 +80,41 @@ export default function GroupPage() {
 
       if (error) throw error;
 
-      const list = (data || []) as Member[];
+      const list = (data ?? []) as Member[];
 
-      // Guarantee "me" is present even if profile list is weird / delayed
-      const hasMe = list.some((m) => m.user_id === userId);
+      // Guarantee you appear even if something is delayed
+      const hasMe = list.some((m) => m.user_id === uid);
       const ensured = hasMe
         ? list
         : [
             ...list,
-            {
-              user_id: userId,
-              display_name: myDisplayName || null,
-              group_code: trimmed,
-            },
+            { user_id: uid, display_name: myName || "You", group_code: trimmed },
           ];
 
-      // Sort: me first, then alphabetical
-      ensured.sort((a, b) => {
-        if (a.user_id === userId) return -1;
-        if (b.user_id === userId) return 1;
-        const an = (a.display_name || "").toLowerCase();
-        const bn = (b.display_name || "").toLowerCase();
-        return an.localeCompare(bn);
+      // Label you and put you first
+      const normalized = ensured.map((m) =>
+        m.user_id === uid
+          ? {
+              ...m,
+              display_name: (myName || m.display_name || "").trim()
+                ? `${(myName || m.display_name || "").trim()} (you)`
+                : "You",
+            }
+          : { ...m, display_name: m.display_name || "(no name)" }
+      );
+
+      normalized.sort((a, b) => {
+        if (a.user_id === uid) return -1;
+        if (b.user_id === uid) return 1;
+        return (a.display_name || "").localeCompare(b.display_name || "");
       });
 
-      setMembers(ensured);
+      setMembers(normalized);
 
-      // Ensure selection always includes me (so you can select yourself)
+      // Ensure you can be selected too
       setSelectedIds((prev) => {
         const set = new Set(prev);
-        set.add(userId);
+        set.add(uid);
         return Array.from(set);
       });
     } catch (e: any) {
@@ -113,18 +124,6 @@ export default function GroupPage() {
     }
   }
 
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) {
-        window.location.href = "/login";
-        return;
-      }
-      setMeId(data.user.id);
-      await loadMeAndProfile(data.user.id);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
-
   async function save() {
     if (!meId) return;
     setMsg(null);
@@ -133,16 +132,18 @@ export default function GroupPage() {
       const code = groupCode.trim();
       const name = displayName.trim();
 
-      const { error } = await supabase.from("profiles").upsert(
-        { user_id: meId, group_code: code, display_name: name },
-        { onConflict: "user_id" }
-      );
+      const { error } = await supabase
+        .from("profiles")
+        .upsert(
+          { user_id: meId, group_code: code, display_name: name },
+          { onConflict: "user_id" }
+        );
 
       if (error) throw error;
 
       setMsg("Saved. Share the same Group Code with your friends.");
 
-      // Refresh members after saving changes
+      // reload members after saving
       await loadMembers(code, meId, name);
     } catch (e: any) {
       setMsg(e?.message ?? "Error");
@@ -151,13 +152,21 @@ export default function GroupPage() {
     }
   }
 
-  function toggleSelected(userId: string) {
+  function toggleSelected(id: string) {
     setSelectedIds((prev) => {
       const set = new Set(prev);
-      if (set.has(userId)) set.delete(userId);
-      else set.add(userId);
+      if (set.has(id)) set.delete(id);
+      else set.add(id);
       return Array.from(set);
     });
+  }
+
+  function selectAll() {
+    setSelectedIds(members.map((m) => m.user_id));
+  }
+
+  function clearAll() {
+    setSelectedIds([]);
   }
 
   return (
@@ -189,67 +198,81 @@ export default function GroupPage() {
             />
           </label>
 
-          <button onClick={save} disabled={loading} style={{ padding: 10, cursor: "pointer" }}>
+          <button
+            onClick={save}
+            disabled={loading}
+            style={{ padding: 10, cursor: "pointer" }}
+          >
             {loading ? "Saving..." : "Save"}
           </button>
 
-          {msg && <p style={{ color: msg.startsWith("Saved") ? "green" : "crimson" }}>{msg}</p>}
+          {msg && (
+            <p style={{ color: msg.startsWith("Saved") ? "green" : "crimson" }}>
+              {msg}
+            </p>
+          )}
         </div>
 
         <hr style={{ margin: "18px 0" }} />
 
-        <h2 style={{ fontSize: 18, marginBottom: 8 }}>Members in this Group</h2>
-        <p style={{ color: "#666", marginTop: 0 }}>
-          Select who you want to include (you can select yourself too).
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <h2 style={{ fontSize: 18, margin: 0 }}>People in your group</h2>
+
+          <button
+            onClick={selectAll}
+            disabled={members.length === 0}
+            style={{ padding: "6px 10px", cursor: "pointer" }}
+          >
+            Select all
+          </button>
+
+          <button
+            onClick={clearAll}
+            disabled={selectedIds.length === 0}
+            style={{ padding: "6px 10px", cursor: "pointer" }}
+          >
+            Clear
+          </button>
+        </div>
+
+        <p style={{ color: "#666", marginTop: 8 }}>
+          You can select yourself too.
         </p>
 
         {loadingMembers ? (
-          <p>Loading members...</p>
+          <p>Loading…</p>
         ) : members.length === 0 ? (
-          <p style={{ color: "#666" }}>No members found yet.</p>
+          <p style={{ color: "#666" }}>No people found yet.</p>
         ) : (
-          <div style={{ display: "grid", gap: 8, maxWidth: 520 }}>
+          <ul style={{ listStyle: "none", padding: 0, marginTop: 10, maxWidth: 520 }}>
             {members.map((m) => {
-              const isMe = m.user_id === meId;
-              const label = (m.display_name || "").trim() || (isMe ? "You" : "Unnamed");
               const checked = selectedIds.includes(m.user_id);
-
               return (
-                <label
+                <li
                   key={m.user_id}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: 10,
                     border: "1px solid #ddd",
                     borderRadius: 10,
+                    padding: 10,
+                    marginBottom: 8,
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleSelected(m.user_id)}
-                  />
-                  <div style={{ display: "grid" }}>
-                    <span style={{ fontWeight: 600 }}>
-                      {label} {isMe ? "(you)" : ""}
-                    </span>
-                    <span style={{ fontSize: 12, color: "#666" }}>
-                      {m.user_id}
-                    </span>
+                  <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSelected(m.user_id)}
+                    />
+                    <span style={{ fontWeight: 600 }}>{m.display_name || "(no name)"}</span>
+                  </label>
+
+                  <div style={{ fontSize: 12, color: "#777", marginTop: 6 }}>
+                    {m.user_id}
                   </div>
-                </label>
+                </li>
               );
             })}
-          </div>
-        )}
-
-        {/* If you want to use the selection elsewhere, it's in selectedIds */}
-        {selectedIds.length > 0 && (
-          <p style={{ marginTop: 12, color: "#555" }}>
-            Selected: <b>{selectedIds.length}</b>
-          </p>
+          </ul>
         )}
       </div>
     </main>
