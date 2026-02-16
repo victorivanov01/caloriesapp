@@ -472,23 +472,55 @@
 
   /* ✅ MOBILE FIX: prevent one-letter-per-line in "Item" */
   .table {
-    min-width: 720px; /* forces horizontal scroll instead of crushing columns */
+    min-width: 780px; /* a bit wider = more room for Item */
   }
 
-  /* On mobile: make Item single-line + ellipsis */
-  .table td:nth-child(2),
-  .table th:nth-child(2) {
-    white-space: nowrap;
+  /* ✅ MOBILE: reduce other fixed columns so Item becomes wider */
+  .table th:nth-child(1),
+  .table td:nth-child(1) {
+    width: 90px; /* Meal */
   }
 
-  .table td:nth-child(2) {
-    overflow: hidden;
-    text-overflow: ellipsis;
-
-    /* override the aggressive wrap that causes vertical letters */
-    overflow-wrap: normal;
-    word-break: normal;
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    width: 55px; /* g */
   }
+
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    width: 65px; /* kcal */
+  }
+
+  .table th:nth-child(5),
+  .table td:nth-child(5),
+  .table th:nth-child(6),
+  .table td:nth-child(6),
+  .table th:nth-child(7),
+  .table td:nth-child(7) {
+    width: 50px; /* P/C/F */
+  }
+
+  .table th:nth-child(8),
+  .table td:nth-child(8) {
+    width: 140px; /* actions */
+  }
+
+  /* ✅ MOBILE: show more of Item (2–3 lines, no ellipsis) */
+.table td:nth-child(2),
+.table th:nth-child(2) {
+  white-space: normal;
+}
+
+.table td:nth-child(2) {
+  overflow: visible;
+  text-overflow: clip;
+
+  /* wrap nicely */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+
+}
+
 }
 
 .td button + button {
@@ -633,3 +665,5 @@
     height: 104px;
   }
 }
+
+
