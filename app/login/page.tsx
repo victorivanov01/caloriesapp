@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import styles from "./Login.module.css";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,8 +37,7 @@ export default function LoginPage() {
         return;
       }
 
-      // register
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { display_name: displayName } },
@@ -45,8 +45,6 @@ export default function LoginPage() {
 
       if (error) throw error;
 
-      // If email confirmations are ON, user may need to confirm.
-      // If confirmations are OFF, session may exist immediately.
       const session = (await supabase.auth.getSession()).data.session;
       if (session) router.replace("/today");
       else setMsg("Registered. Check your email to confirm (if confirmations are enabled).");
@@ -58,63 +56,72 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 480, margin: "40px auto", padding: 16, fontFamily: "system-ui" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 12 }}>Calorie Tracker</h1>
+    <main className={styles.page}>
+      <div className={styles.shell}>
+        <h1 className={styles.title}>Calorie Tracker</h1>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <button
-          onClick={() => setMode("login")}
-          style={{ padding: "8px 12px", cursor: "pointer", opacity: mode === "login" ? 1 : 0.6 }}
-        >
-          Login
-        </button>
-        <button
-          onClick={() => setMode("register")}
-          style={{ padding: "8px 12px", cursor: "pointer", opacity: mode === "register" ? 1 : 0.6 }}
-        >
-          Register
-        </button>
+        <div className={styles.card}>
+          <div className={styles.modeRow}>
+            <button
+              type="button"
+              onClick={() => setMode("login")}
+              className={`${styles.modeBtn} ${mode === "login" ? styles.modeBtnActive : ""}`}
+            >
+              Login
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMode("register")}
+              className={`${styles.modeBtn} ${mode === "register" ? styles.modeBtnActive : ""}`}
+            >
+              Register
+            </button>
+          </div>
+
+          <form onSubmit={onSubmit} className={styles.form}>
+            {mode === "register" && (
+              <input
+                className={styles.input}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Display name (e.g. Viktor)"
+                required
+              />
+            )}
+
+            <input
+              className={styles.input}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              type="email"
+              required
+              autoComplete="email"
+            />
+
+            <input
+              className={styles.input}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password (min 6 chars)"
+              type="password"
+              required
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+            />
+
+            <button className={styles.submit} disabled={loading}>
+              {loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}
+            </button>
+
+            {msg ? <p className={styles.msg}>{msg}</p> : null}
+          </form>
+        </div>
+
+        <p className={styles.help}>
+          After login: go to <b>Group</b> to create a group + invite friends.
+        </p>
       </div>
-
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
-        {mode === "register" && (
-          <input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Display name (e.g. Viktor)"
-            required
-            style={{ padding: 10 }}
-          />
-        )}
-
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          type="email"
-          required
-          style={{ padding: 10 }}
-        />
-
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password (min 6 chars)"
-          type="password"
-          required
-          style={{ padding: 10 }}
-        />
-
-        <button disabled={loading} style={{ padding: 10, cursor: "pointer" }}>
-          {loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}
-        </button>
-
-        {msg && <p style={{ color: "crimson" }}>{msg}</p>}
-      </form>
-
-      <p style={{ marginTop: 16, color: "#444" }}>
-        After login: go to <b>Group</b> to create a group + invite friends.
-      </p>
     </main>
   );
 }

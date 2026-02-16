@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Nav from "@/components/Nav";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import styles from "./Friends.module.css";
+import DatePicker from "@/components/DatePicker";
+
 
 type Friend = { user_id: string; display_name: string };
 
@@ -334,29 +336,13 @@ export default function FriendsPage() {
 
               <div className={styles.topRowRight}>
                 <label className={styles.dateLabel}>
-                  Date{" "}
-                  <input
-                    className={styles.dateInput}
-                    type="date"
-                    value={dateStr}
-                    onChange={(e) => setDateStr(e.target.value)}
-                  />
-                </label>
-
-                <div className={styles.totalsInline}>
-                  <div>
-                    <b>Total:</b> {grandTotals.calories} kcal
-                  </div>
-                  <div>
-                    <b>P:</b> {grandTotals.protein}g
-                  </div>
-                  <div>
-                    <b>C:</b> {grandTotals.carbs}g
-                  </div>
-                  <div>
-                    <b>F:</b> {grandTotals.fat}g
-                  </div>
-                </div>
+  Date{" "}
+  <DatePicker
+    value={dateStr}
+    onChange={(newDate) => setDateStr(newDate)}
+  />
+</label>
+              
               </div>
             </div>
 

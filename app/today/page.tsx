@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Nav from "@/components/Nav";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import styles from "./Today.module.css";
+import DatePicker from "@/components/DatePicker";
+
 
 type Entry = {
   id: string;
@@ -37,6 +39,14 @@ function addTotals(a: Totals, b: Totals): Totals {
   };
 }
 
+function toIntOrZero(v: string): number {
+  const s = v.trim();
+  if (s === "") return 0;
+  const n = Number(s);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
+}
+
 function ymd(d: Date): string {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -67,12 +77,12 @@ export default function TodayPage() {
   const [dateStr, setDateStr] = useState<string>(() => ymd(new Date()));
   const [dailyLogId, setDailyLogId] = useState<string | null>(null);
 
-  // fast manual entry
+  // fast manual entry (strings so inputs can be empty)
   const [name, setName] = useState("");
-  const [calories, setCalories] = useState<number>(0);
-  const [protein, setProtein] = useState<number>(0);
-  const [carbs, setCarbs] = useState<number>(0);
-  const [fat, setFat] = useState<number>(0);
+  const [calories, setCalories] = useState<string>("");
+  const [protein, setProtein] = useState<string>("");
+  const [carbs, setCarbs] = useState<string>("");
+  const [fat, setFat] = useState<string>("");
   const [meal, setMeal] = useState<string>("Snack");
 
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -133,8 +143,7 @@ export default function TodayPage() {
         logId = created.id;
       }
 
-    setDailyLogId(logId ?? null);
-
+      setDailyLogId(logId ?? null);
 
       const { data: ents, error: eErr } = await supabase
         .from("food_entries")
@@ -187,7 +196,7 @@ export default function TodayPage() {
       }
 
       const logIds = Array.from(logByDate.values());
-      let entriesByLogId = new Map<string, Entry[]>();
+      const entriesByLogId = new Map<string, Entry[]>();
 
       if (logIds.length > 0) {
         const { data: ents, error: eErr } = await supabase
@@ -254,10 +263,10 @@ export default function TodayPage() {
         daily_log_id: dailyLogId,
         user_id: meId!,
         name: n,
-        calories: Number.isFinite(calories) ? Math.max(0, Math.floor(calories)) : 0,
-        protein_g: Number.isFinite(protein) ? Math.max(0, Math.floor(protein)) : 0,
-        carbs_g: Number.isFinite(carbs) ? Math.max(0, Math.floor(carbs)) : 0,
-        fat_g: Number.isFinite(fat) ? Math.max(0, Math.floor(fat)) : 0,
+        calories: toIntOrZero(calories),
+        protein_g: toIntOrZero(protein),
+        carbs_g: toIntOrZero(carbs),
+        fat_g: toIntOrZero(fat),
         meal,
       };
 
@@ -265,10 +274,10 @@ export default function TodayPage() {
       if (error) throw error;
 
       setName("");
-      setCalories(0);
-      setProtein(0);
-      setCarbs(0);
-      setFat(0);
+      setCalories("");
+      setProtein("");
+      setCarbs("");
+      setFat("");
       setMeal("Snack");
 
       await ensureLogAndLoadDay(dateStr);
@@ -339,9 +348,9 @@ export default function TodayPage() {
         {/* CONTROLS */}
         <div className={styles.controlsRow}>
           <label className={styles.dateLabel}>
-            Date
-            <input className={styles.dateInput} type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} />
-          </label>
+    Date
+    <DatePicker value={dateStr} onChange={setDateStr} />
+  </label>
 
           <label className={styles.switch}>
             <input type="checkbox" checked={showWeek} onChange={(e) => setShowWeek(e.target.checked)} />
@@ -377,7 +386,7 @@ export default function TodayPage() {
           </div>
         </div>
 
-        {/* ✅ QUICK ADD MOVED HERE */}
+        {/* QUICK ADD */}
         <div className={styles.section}>
           <h2 className={styles.sectionTitle}>Quick add</h2>
 
@@ -392,22 +401,46 @@ export default function TodayPage() {
             <div className={styles.formRow}>
               <label className={styles.field}>
                 kcal
-                <input className={styles.numInput} type="number" value={calories} onChange={(e) => setCalories(Number(e.target.value))} />
+                <input
+                  className={styles.numInput}
+                  type="number"
+                  inputMode="numeric"
+                  value={calories}
+                  onChange={(e) => setCalories(e.target.value)}
+                />
               </label>
 
               <label className={styles.field}>
                 protein (g)
-                <input className={styles.numInput} type="number" value={protein} onChange={(e) => setProtein(Number(e.target.value))} />
+                <input
+                  className={styles.numInput}
+                  type="number"
+                  inputMode="numeric"
+                  value={protein}
+                  onChange={(e) => setProtein(e.target.value)}
+                />
               </label>
 
               <label className={styles.field}>
                 carbs (g)
-                <input className={styles.numInput} type="number" value={carbs} onChange={(e) => setCarbs(Number(e.target.value))} />
+                <input
+                  className={styles.numInput}
+                  type="number"
+                  inputMode="numeric"
+                  value={carbs}
+                  onChange={(e) => setCarbs(e.target.value)}
+                />
               </label>
 
               <label className={styles.field}>
                 fat (g)
-                <input className={styles.numInput} type="number" value={fat} onChange={(e) => setFat(Number(e.target.value))} />
+                <input
+                  className={styles.numInput}
+                  type="number"
+                  inputMode="numeric"
+                  value={fat}
+                  onChange={(e) => setFat(e.target.value)}
+                />
               </label>
 
               <label className={styles.field}>
@@ -427,7 +460,7 @@ export default function TodayPage() {
           </div>
         </div>
 
-        {/* WEEK COMPARISON AFTER QUICK ADD */}
+        {/* WEEK COMPARISON */}
         {showWeek ? (
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
@@ -504,9 +537,7 @@ export default function TodayPage() {
                       <td className={`${styles.td} ${styles.tdNum}`}>{e.carbs_g}</td>
                       <td className={`${styles.td} ${styles.tdNum}`}>{e.fat_g}</td>
                       <td className={`${styles.td} ${styles.tdSmall}`}>
-                        {e.created_at
-                          ? new Date(e.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                          : ""}
+                        {e.created_at ? new Date(e.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
                       </td>
                       <td className={styles.td}>
                         <button className={styles.dangerButton} onClick={() => deleteEntry(e.id)} disabled={loading}>

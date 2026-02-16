@@ -1,5 +1,28 @@
 .page {
-  font-family: system-ui;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  color: rgba(231, 234, 240, 0.95);
+
+  /* Theme tokens */
+  --bg0: #070b14;
+  --bg1: #0b1220;
+
+  --card: rgba(255, 255, 255, 0.06);
+  --card2: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.10);
+  --border2: rgba(255, 255, 255, 0.14);
+
+  --muted: rgba(231, 234, 240, 0.65);
+  --muted2: rgba(231, 234, 240, 0.78);
+
+  --focus: rgba(99, 102, 241, 0.75);
+  --focusRing: rgba(99, 102, 241, 0.22);
+
+  --shadow: 0 12px 30px rgba(0, 0, 0, 0.38);
+
+  min-height: 100vh;
+  background: radial-gradient(1100px 650px at 15% 10%, rgba(99, 102, 241, 0.18), transparent 55%),
+    radial-gradient(900px 600px at 90% 15%, rgba(16, 185, 129, 0.12), transparent 55%),
+    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 100%);
 }
 
 .container {
@@ -9,7 +32,8 @@
 }
 
 .title {
-  font-size: 24px;
+  font-size: 26px;
+  letter-spacing: -0.02em;
   margin-bottom: 12px;
 }
 
@@ -20,11 +44,17 @@
 }
 
 .card {
-  border: 1px solid #333;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+
   padding: 12px;
   flex: 1 1 600px;
 }
 
+/* Keep your existing layout behavior */
 .card:first-child {
   min-width: 300px;
   flex: 0 0 300px;
@@ -35,6 +65,10 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 10px;
 }
 
 .toolbar {
@@ -45,32 +79,73 @@
 }
 
 .button {
-  padding: 6px 10px;
+  padding: 8px 12px;
+  height: 38px;
   cursor: pointer;
+
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(231, 234, 240, 0.95);
+
+  transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.button:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: var(--border2);
+}
+.button:active {
+  transform: translateY(1px);
+}
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .friendList {
   list-style: none;
   padding: 0;
   margin-top: 10px;
+  margin-bottom: 0;
+  display: grid;
+  gap: 8px;
 }
 
 .friendItem {
-  margin-bottom: 8px;
+  margin: 0;
 }
 
 .friendLabel {
   display: flex;
   gap: 10px;
   align-items: center;
-  border: 1px solid #444;
-  padding: 10px;
+
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 14px;
+  padding: 10px 12px;
+
   cursor: pointer;
   user-select: none;
+
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease;
+}
+.friendLabel:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.friendLabel:active {
+  transform: translateY(1px);
 }
 
 .checkbox {
-  transform: scale(1.1);
+  width: 18px;
+  height: 18px;
+  accent-color: rgb(99, 102, 241);
+  transform: scale(1.05);
 }
 
 .topRow {
@@ -78,6 +153,13 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  margin-bottom: 12px;
 }
 
 .topRowRight {
@@ -91,16 +173,35 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+
+  color: var(--muted2);
+  font-size: 13px;
 }
 
 .dateInput {
-  padding: 6px;
+  padding: 8px 10px;
+  height: 38px;
+
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(10, 14, 26, 0.65);
+  color: rgba(231, 234, 240, 0.95);
+  outline: none;
+}
+.dateInput:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px var(--focusRing);
 }
 
 .totalsInline {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--card2);
+  border: 1px solid var(--border);
 }
 
 .section {
@@ -109,11 +210,15 @@
 
 .sectionTitle {
   font-size: 16px;
+  letter-spacing: -0.01em;
   margin: 0 0 8px 0;
 }
 
 .tableWrap {
   overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .table {
@@ -123,9 +228,16 @@
 
 .th {
   text-align: left;
-  border-bottom: 1px solid #444;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
   padding: 10px 8px;
   white-space: nowrap;
+
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(231, 234, 240, 0.68);
+  background: rgba(8, 10, 18, 0.55);
+  backdrop-filter: blur(10px);
 }
 
 .thNum {
@@ -133,9 +245,10 @@
 }
 
 .td {
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   padding: 10px 8px;
   vertical-align: top;
+  color: rgba(231, 234, 240, 0.92);
 }
 
 .tdNum {
@@ -146,19 +259,41 @@
 .tdSmall {
   white-space: nowrap;
   font-size: 12px;
-  color: #aaa;
+  color: rgba(231, 234, 240, 0.70);
 }
 
 .tr:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .muted {
-  color: #777;
+  color: var(--muted);
   margin-top: 10px;
 }
 
 .error {
   margin-top: 12px;
-  color: crimson;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.10);
+  color: rgba(255, 220, 220, 0.95);
+}
+
+/* Mobile polish without changing your layout strategy */
+@media (max-width: 768px) {
+  .container {
+    margin: 16px auto;
+    padding: 12px;
+  }
+
+  .card:first-child {
+    min-width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .totalsInline {
+    width: 100%;
+    justify-content: space-between;
+  }
 }

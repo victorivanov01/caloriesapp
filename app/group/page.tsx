@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Nav from "@/components/Nav";
 import { supabaseBrowser } from "@/lib/supabaseClient";
+import styles from "./Group.module.css";
 
 export default function GroupPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
@@ -46,10 +47,7 @@ export default function GroupPage() {
 
       const { error } = await supabase
         .from("profiles")
-        .upsert(
-          { user_id: meId, group_code: code, display_name: name },
-          { onConflict: "user_id" }
-        );
+        .upsert({ user_id: meId, group_code: code, display_name: name }, { onConflict: "user_id" });
 
       if (error) throw error;
 
@@ -61,48 +59,37 @@ export default function GroupPage() {
     }
   }
 
-  return (
-    <main style={{ fontFamily: "system-ui" }}>
-      <Nav />
-      <div style={{ maxWidth: 700, margin: "24px auto", padding: 16 }}>
-        <h1 style={{ fontSize: 24, marginBottom: 12 }}>Group</h1>
+  const isOk = msg?.startsWith("Saved");
 
-        <p style={{ color: "#555" }}>
+  return (
+    <main className={styles.page}>
+      <Nav />
+
+      <div className={styles.container}>
+        <h1 className={styles.title}>Group</h1>
+
+        <p className={styles.subtitle}>
           Simple mode: everyone who uses the same <b>Group Code</b> can see each other’s logs.
         </p>
 
-        <div style={{ display: "grid", gap: 10, maxWidth: 420, marginTop: 12 }}>
-          <label>
-            Display name
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              style={{ padding: 10, width: "100%" }}
-            />
-          </label>
+        <div className={styles.card}>
+          <div className={styles.form}>
+            <label className={styles.field}>
+              Display name
+              <input className={styles.input} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            </label>
 
-          <label>
-            Group Code (share this with friends)
-            <input
-              value={groupCode}
-              onChange={(e) => setGroupCode(e.target.value)}
-              style={{ padding: 10, width: "100%" }}
-            />
-          </label>
+            <label className={styles.field}>
+              Group Code (share this with friends)
+              <input className={styles.input} value={groupCode} onChange={(e) => setGroupCode(e.target.value)} />
+            </label>
 
-          <button
-            onClick={save}
-            disabled={loading}
-            style={{ padding: 10, cursor: "pointer" }}
-          >
-            {loading ? "Saving..." : "Save"}
-          </button>
+            <button className={styles.button} onClick={save} disabled={loading}>
+              {loading ? "Saving..." : "Save"}
+            </button>
 
-          {msg && (
-            <p style={{ color: msg.startsWith("Saved") ? "green" : "crimson" }}>
-              {msg}
-            </p>
-          )}
+            {msg ? <p className={isOk ? styles.msgOk : styles.msgErr}>{msg}</p> : null}
+          </div>
         </div>
       </div>
     </main>

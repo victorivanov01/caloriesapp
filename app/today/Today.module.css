@@ -1,5 +1,28 @@
 .page {
-  font-family: system-ui;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  color: rgba(231, 234, 240, 0.95);
+
+  /* Theme tokens */
+  --bg0: #070b14;
+  --bg1: #0b1220;
+
+  --card: rgba(255, 255, 255, 0.06);
+  --card2: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.10);
+  --border2: rgba(255, 255, 255, 0.14);
+
+  --muted: rgba(231, 234, 240, 0.65);
+  --muted2: rgba(231, 234, 240, 0.78);
+
+  --focus: rgba(99, 102, 241, 0.75);
+  --focusRing: rgba(99, 102, 241, 0.22);
+
+  --shadow: 0 12px 30px rgba(0, 0, 0, 0.38);
+
+  min-height: 100vh;
+  background: radial-gradient(1100px 650px at 15% 10%, rgba(99, 102, 241, 0.18), transparent 55%),
+    radial-gradient(900px 600px at 90% 15%, rgba(16, 185, 129, 0.12), transparent 55%),
+    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 100%);
 }
 
 .container {
@@ -17,7 +40,8 @@
 }
 
 .title {
-  font-size: 24px;
+  font-size: 26px;
+  letter-spacing: -0.02em;
   margin: 0 0 12px 0;
 }
 
@@ -25,6 +49,12 @@
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
+
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
 }
 
 .controlsRow {
@@ -33,16 +63,34 @@
   align-items: center;
   flex-wrap: wrap;
   margin-bottom: 14px;
+
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
 }
 
 .dateLabel {
   display: inline-flex;
   gap: 8px;
   align-items: center;
+  color: var(--muted2);
+  font-size: 13px;
 }
 
 .dateInput {
-  padding: 8px;
+  padding: 8px 10px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(10, 14, 26, 0.65);
+  color: rgba(231, 234, 240, 0.95);
+  outline: none;
+}
+.dateInput:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px var(--focusRing);
 }
 
 .switch {
@@ -51,6 +99,13 @@
   align-items: center;
   user-select: none;
   cursor: pointer;
+  color: var(--muted2);
+  font-size: 13px;
+}
+.switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: rgb(99, 102, 241);
 }
 
 .weekNav {
@@ -65,6 +120,11 @@
   align-items: center;
   flex-wrap: wrap;
   margin-left: auto;
+
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--card2);
+  border: 1px solid var(--border);
 }
 
 .section {
@@ -81,18 +141,34 @@
 
 .sectionTitle {
   font-size: 18px;
+  letter-spacing: -0.01em;
   margin: 0 0 8px 0;
 }
 
 .card {
-  border: 1px solid #333;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+
   padding: 12px;
   display: grid;
   gap: 10px;
 }
 
 .textInput {
-  padding: 10px;
+  padding: 10px 12px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(10, 14, 26, 0.65);
+  color: rgba(231, 234, 240, 0.95);
+  outline: none;
+}
+.textInput:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px var(--focusRing);
 }
 
 .formRow {
@@ -106,40 +182,115 @@
   display: grid;
   gap: 6px;
   font-size: 12px;
+  color: var(--muted2);
 }
 
 .numInput {
-  padding: 8px;
+  padding: 8px 10px;
   width: 120px;
+  height: 40px;
+
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(10, 14, 26, 0.65);
+  color: rgba(231, 234, 240, 0.95);
+  outline: none;
+}
+.numInput:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px var(--focusRing);
 }
 
 .select {
-  padding: 8px;
+  padding: 8px 10px;
   width: 140px;
+  height: 40px;
+
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(10, 14, 26, 0.65);
+  color: rgba(231, 234, 240, 0.95);
+  outline: none;
+}
+.select:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px var(--focusRing);
+}
+
+.button,
+.primaryButton,
+.dangerButton,
+.linkButton {
+  cursor: pointer;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(231, 234, 240, 0.95);
+  transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.button:hover,
+.primaryButton:hover,
+.dangerButton:hover,
+.linkButton:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: var(--border2);
+}
+.button:active,
+.primaryButton:active,
+.dangerButton:active,
+.linkButton:active {
+  transform: translateY(1px);
+}
+.button:disabled,
+.primaryButton:disabled,
+.dangerButton:disabled,
+.linkButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .button {
-  padding: 8px 10px;
-  cursor: pointer;
+  padding: 8px 12px;
+  height: 38px;
 }
 
 .primaryButton {
   padding: 10px 14px;
-  cursor: pointer;
+  height: 40px;
+
+  border-color: rgba(99, 102, 241, 0.55);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.35), rgba(99, 102, 241, 0.18));
+}
+.primaryButton:hover {
+  border-color: rgba(99, 102, 241, 0.75);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.48), rgba(99, 102, 241, 0.22));
 }
 
 .dangerButton {
   padding: 6px 10px;
-  cursor: pointer;
+  height: 34px;
+
+  border-color: rgba(239, 68, 68, 0.55);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.28), rgba(239, 68, 68, 0.14));
+}
+.dangerButton:hover {
+  border-color: rgba(239, 68, 68, 0.75);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.38), rgba(239, 68, 68, 0.18));
 }
 
 .linkButton {
   padding: 6px 10px;
-  cursor: pointer;
+  height: 34px;
+  background: transparent;
 }
 
 .tableWrap {
   overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .table {
@@ -149,9 +300,16 @@
 
 .th {
   text-align: left;
-  border-bottom: 1px solid #444;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
   padding: 10px 8px;
   white-space: nowrap;
+
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(231, 234, 240, 0.68);
+  background: rgba(8, 10, 18, 0.55);
+  backdrop-filter: blur(10px);
 }
 
 .thNum {
@@ -159,9 +317,10 @@
 }
 
 .td {
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   padding: 10px 8px;
   vertical-align: top;
+  color: rgba(231, 234, 240, 0.92);
 }
 
 .tdNum {
@@ -172,28 +331,95 @@
 .tdSmall {
   white-space: nowrap;
   font-size: 12px;
-  color: #aaa;
+  color: rgba(231, 234, 240, 0.70);
 }
 
 .tr:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .trActive {
-  outline: 2px solid rgba(255, 255, 255, 0.25);
+  outline: 2px solid rgba(99, 102, 241, 0.35);
   outline-offset: -2px;
 }
 
 .muted {
-  color: #777;
+  color: var(--muted);
 }
 
 .mutedSmall {
-  color: #888;
+  color: var(--muted);
   font-size: 12px;
 }
 
 .error {
   margin-top: 12px;
-  color: crimson;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.10);
+  color: rgba(255, 220, 220, 0.95);
+}
+
+/* Hide number input spinners (Chrome, Edge, Safari) */
+.numInput::-webkit-outer-spin-button,
+.numInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* Hide number input spinners (Firefox) */
+.numInput[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* ===== Mobile adjustments ===== */
+
+@media (max-width: 768px) {
+
+  .container {
+    margin: 16px auto;
+    padding: 12px;
+  }
+
+  .headerRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .totalsInline {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .controlsRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .weekTotals {
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .formRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .numInput,
+  .select,
+  .textInput {
+    width: 100%;
+  }
+
+  .button,
+  .primaryButton {
+    width: 100%;
+  }
+
 }

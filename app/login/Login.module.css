@@ -1,0 +1,158 @@
+/* Login.module.css */
+
+.page {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  color: rgba(231, 234, 240, 0.95);
+
+  /* Theme tokens */
+  --bg0: #070b14;
+  --bg1: #0b1220;
+
+  --card: rgba(255, 255, 255, 0.06);
+  --card2: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.10);
+  --border2: rgba(255, 255, 255, 0.14);
+
+  --muted: rgba(231, 234, 240, 0.65);
+  --muted2: rgba(231, 234, 240, 0.78);
+
+  --focus: rgba(99, 102, 241, 0.75);
+  --focusRing: rgba(99, 102, 241, 0.22);
+
+  --shadow: 0 12px 30px rgba(0, 0, 0, 0.38);
+
+  min-height: 100vh;
+  background: radial-gradient(1100px 650px at 15% 10%, rgba(99, 102, 241, 0.18), transparent 55%),
+    radial-gradient(900px 600px at 90% 15%, rgba(16, 185, 129, 0.12), transparent 55%),
+    linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 100%);
+
+  display: grid;
+  place-items: center;
+  padding: 28px 16px;
+}
+
+.shell {
+  width: 100%;
+  max-width: 480px;
+}
+
+.title {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  padding: 14px;
+}
+
+.modeRow {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+
+.modeBtn {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 12px;
+  cursor: pointer;
+
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(231, 234, 240, 0.78);
+
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease, opacity 0.15s ease;
+}
+
+.modeBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+.modeBtnActive {
+  color: rgba(231, 234, 240, 0.95);
+  border-color: rgba(99, 102, 241, 0.40);
+  background: rgba(99, 102, 241, 0.14);
+}
+
+.form {
+  display: grid;
+  gap: 10px;
+}
+
+.input {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(10, 14, 26, 0.65);
+  color: rgba(231, 234, 240, 0.95);
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 4px var(--focusRing);
+}
+
+.submit {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+
+  border: 1px solid rgba(99, 102, 241, 0.55);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.35), rgba(99, 102, 241, 0.18));
+  color: rgba(231, 234, 240, 0.95);
+
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.submit:hover {
+  border-color: rgba(99, 102, 241, 0.75);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.48), rgba(99, 102, 241, 0.22));
+}
+
+.submit:active {
+  transform: translateY(1px);
+}
+
+.submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.msg {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.10);
+  color: rgba(255, 220, 220, 0.95);
+}
+
+.help {
+  margin-top: 14px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .page {
+    padding: 20px 12px;
+  }
+}
