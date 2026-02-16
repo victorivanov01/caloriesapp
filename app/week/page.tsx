@@ -385,7 +385,6 @@ export default function WeekPage() {
                                       <th className={`${styles.th} ${styles.thNum}`}>P</th>
                                       <th className={`${styles.th} ${styles.thNum}`}>C</th>
                                       <th className={`${styles.th} ${styles.thNum}`}>F</th>
-                                      <th className={styles.th}>Time</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -398,11 +397,6 @@ export default function WeekPage() {
                                         <td className={`${styles.td} ${styles.tdNum}`}>{e.protein_g ?? 0}</td>
                                         <td className={`${styles.td} ${styles.tdNum}`}>{e.carbs_g ?? 0}</td>
                                         <td className={`${styles.td} ${styles.tdNum}`}>{e.fat_g ?? 0}</td>
-                                        <td className={`${styles.td} ${styles.tdSmall}`}>
-                                          {e.created_at
-                                            ? new Date(e.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                                            : ""}
-                                        </td>
                                       </tr>
                                     ))}
                                   </tbody>
