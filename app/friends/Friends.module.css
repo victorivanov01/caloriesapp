@@ -280,20 +280,34 @@
   color: rgba(255, 220, 220, 0.95);
 }
 
-/* Mobile polish without changing your layout strategy */
+/* Mobile: stack cards cleanly */
 @media (max-width: 768px) {
   .container {
     margin: 16px auto;
     padding: 12px;
   }
 
+  .layout {
+    flex-direction: column;
+    align-items: stretch; /* make cards same width */
+  }
+
+  .card {
+    flex: 1 1 auto;   /* remove desktop flex-basis */
+    width: 100%;
+  }
+
   .card:first-child {
-    min-width: 100%;
-    flex: 1 1 100%;
+    flex: 1 1 auto;
+    min-width: 0; /* allow proper shrinking */
   }
 
   .totalsInline {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .tableWrap {
+    width: 100%;
   }
 }
