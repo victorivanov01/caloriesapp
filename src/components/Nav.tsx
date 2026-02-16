@@ -25,6 +25,11 @@ export default function Nav() {
         <Link className={styles.link} href="/today">
           Today
         </Link>
+
+        <Link className={styles.link} href="/week">
+          Week
+        </Link>
+
         <Link className={styles.link} href="/friends">
           Friends
         </Link>
