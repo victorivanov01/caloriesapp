@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+export const dynamic = "force-dynamic";
+
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Nav from "@/components/Nav";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import styles from "./Today.module.css";
 import { useSearchParams } from "next/navigation";
-import DatePicker from "@/components/DatePicker";
 
 type Entry = {
   id: string;
@@ -63,7 +64,7 @@ function parseWeightKg(v: string): number | null {
   return Math.round(n * 100) / 100;
 }
 
-export default function TodayPage() {
+function TodayInner() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const searchParams = useSearchParams();
 
@@ -271,9 +272,8 @@ export default function TodayPage() {
         </div>
 
         <div className={styles.controlsRow}>
-          <label className={styles.dateLabel}>
-            Date <DatePicker value={dateStr} onChange={(d) => setDateStr(d)} />
-          </label>
+          <span className={styles.dateLabel}>Date</span>
+          <input className={styles.dateInput} type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} />
 
           <label className={styles.field}>
             Weight (kg)
@@ -308,13 +308,7 @@ export default function TodayPage() {
             <div className={styles.formRow}>
               <label className={styles.field}>
                 grams (g)
-                <input
-                  className={styles.numInput}
-                  value={grams}
-                  onChange={(e) => setGrams(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="g"
-                />
+                <input className={styles.numInput} value={grams} onChange={(e) => setGrams(e.target.value)} inputMode="numeric" placeholder="g" />
               </label>
 
               <label className={styles.field}>
@@ -390,7 +384,10 @@ export default function TodayPage() {
                       <td className={`${styles.td} ${styles.tdNum}`}>{e.fat_g ?? 0}</td>
                       <td className={`${styles.td} ${styles.tdSmall}`}>
                         {e.created_at
-                          ? new Date(e.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                          ? new Date(e.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
                           : ""}
                       </td>
                       <td className={styles.td}>
@@ -409,5 +406,13 @@ export default function TodayPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TodayPage() {
+  return (
+    <Suspense fallback={null}>
+      <TodayInner />
+    </Suspense>
   );
 }
