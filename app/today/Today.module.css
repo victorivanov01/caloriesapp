@@ -1,4 +1,4 @@
-.page {
+.page { 
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   color: rgba(231, 234, 240, 0.95);
 
@@ -468,6 +468,26 @@
   .button,
   .primaryButton {
     width: 100%;
+  }
+
+  /* ✅ MOBILE FIX: prevent one-letter-per-line in "Item" */
+  .table {
+    min-width: 720px; /* forces horizontal scroll instead of crushing columns */
+  }
+
+  /* On mobile: make Item single-line + ellipsis */
+  .table td:nth-child(2),
+  .table th:nth-child(2) {
+    white-space: nowrap;
+  }
+
+  .table td:nth-child(2) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    /* override the aggressive wrap that causes vertical letters */
+    overflow-wrap: normal;
+    word-break: normal;
   }
 }
 
