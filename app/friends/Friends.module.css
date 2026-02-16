@@ -280,6 +280,103 @@
   color: rgba(255, 220, 220, 0.95);
 }
 
+/* NEW: week chip */
+.weekChip {
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  color: rgba(231, 234, 240, 0.88);
+  font-size: 13px;
+}
+
+/* NEW: weekly progress UI */
+.progressList {
+  display: grid;
+  gap: 10px;
+}
+
+.progressCard {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+
+.progressHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.progressName {
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.progressMeta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.modeBadge {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(231, 234, 240, 0.85);
+}
+
+.progressEmpty {
+  color: rgba(231, 234, 240, 0.62);
+  font-size: 13px;
+}
+
+.progressBars {
+  display: grid;
+  gap: 10px;
+}
+
+.progressRow {
+  display: grid;
+  gap: 6px;
+}
+
+.progressLabel {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: rgba(231, 234, 240, 0.88);
+}
+
+.progressNums {
+  color: rgba(231, 234, 240, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+.barTrack {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
 /* Mobile: stack cards cleanly */
 @media (max-width: 768px) {
   .container {
@@ -293,7 +390,7 @@
   }
 
   .card {
-    flex: 1 1 auto;   /* remove desktop flex-basis */
+    flex: 1 1 auto; /* remove desktop flex-basis */
     width: 100%;
   }
 

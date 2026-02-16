@@ -26,6 +26,12 @@ type Totals = {
   grams: number;
 };
 
+type WeeklyGoal = {
+  mode: "bulk" | "cut";
+  calorie_goal: number | null;
+  protein_goal_g: number | null;
+} | null;
+
 function ymd(d: Date): string {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -53,6 +59,49 @@ function emptyTotals(): Totals {
   return { calories: 0, protein: 0, carbs: 0, fat: 0, grams: 0 };
 }
 
+function toNullableInt(v: string): number | null {
+  const s = v.trim();
+  if (!s) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.floor(n));
+}
+
+function pctRaw(value: number, goal: number | null): number {
+  if (!goal || goal <= 0) return 0;
+  return (value / goal) * 100;
+}
+
+function pctClamped(value: number, goal: number | null): number {
+  return Math.max(0, Math.min(100, pctRaw(value, goal)));
+}
+
+// calories: bulk vs cut behavior (same as Today)
+function ringColorCalories(percentRaw: number, mode: "bulk" | "cut"): string {
+  const p = Number.isFinite(percentRaw) ? percentRaw : 0;
+
+  if (mode === "bulk") {
+    if (p < 50) return "rgba(239, 68, 68, 0.92)";
+    if (p < 75) return "rgba(245, 158, 11, 0.92)";
+    if (p < 90) return "rgba(234, 179, 8, 0.92)";
+    return "rgba(16, 185, 129, 0.92)";
+  }
+
+  if (p >= 100) return "rgba(239, 68, 68, 0.92)";
+  if (p >= 90) return "rgba(245, 158, 11, 0.92)";
+  if (p >= 75) return "rgba(234, 179, 8, 0.92)";
+  return "rgba(16, 185, 129, 0.92)";
+}
+
+// protein: low->red->orange->yellow->green, >=100 stays green
+function ringColorProtein(percentRaw: number): string {
+  const p = Number.isFinite(percentRaw) ? percentRaw : 0;
+  if (p < 50) return "rgba(239, 68, 68, 0.92)";
+  if (p < 75) return "rgba(245, 158, 11, 0.92)";
+  if (p < 90) return "rgba(234, 179, 8, 0.92)";
+  return "rgba(16, 185, 129, 0.92)";
+}
+
 export default function WeekPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
 
@@ -62,7 +111,13 @@ export default function WeekPage() {
   const [weekRows, setWeekRows] = useState<{ dateStr: string; label: string; totals: Totals; weightKg: number | null }[]>([]);
   const [weekTotals, setWeekTotals] = useState<Totals>(emptyTotals());
 
-  // multiple expand support
+  const [goalMode, setGoalMode] = useState<"bulk" | "cut">("cut");
+  const [calorieGoalStr, setCalorieGoalStr] = useState<string>("");
+  const [proteinGoalStr, setProteinGoalStr] = useState<string>("");
+  const [weeklyGoal, setWeeklyGoal] = useState<WeeklyGoal>(null);
+  const [savingGoal, setSavingGoal] = useState(false);
+  const [goalMsg, setGoalMsg] = useState<string | null>(null);
+
   const [openDays, setOpenDays] = useState<Set<string>>(() => new Set());
   const [entriesByDay, setEntriesByDay] = useState<Record<string, Entry[]>>({});
   const [loadingDays, setLoadingDays] = useState<Set<string>>(() => new Set());
@@ -86,11 +141,76 @@ export default function WeekPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, weekStart]);
 
+  async function loadWeeklyGoal(weekStartYmd: string) {
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from("weekly_goals")
+      .select("mode, calorie_goal, protein_goal_g")
+      .eq("user_id", userId)
+      .eq("week_start", weekStartYmd)
+      .maybeSingle();
+
+    if (error) {
+      setGoalMsg(error.message);
+      setWeeklyGoal(null);
+      return;
+    }
+
+    if (!data) {
+      setWeeklyGoal(null);
+      setGoalMode("cut");
+      setCalorieGoalStr("");
+      setProteinGoalStr("");
+      return;
+    }
+
+    const m = (data as any).mode === "bulk" ? "bulk" : "cut";
+    const cg = (data as any).calorie_goal ?? null;
+    const pg = (data as any).protein_goal_g ?? null;
+
+    setWeeklyGoal({ mode: m, calorie_goal: cg, protein_goal_g: pg });
+    setGoalMode(m);
+    setCalorieGoalStr(cg != null ? String(cg) : "");
+    setProteinGoalStr(pg != null ? String(pg) : "");
+  }
+
+  async function saveWeeklyGoal() {
+    if (!userId) return;
+
+    setGoalMsg(null);
+    setSavingGoal(true);
+
+    try {
+      const payload = {
+        user_id: userId,
+        week_start: weekStart,
+        mode: goalMode,
+        calorie_goal: toNullableInt(calorieGoalStr),
+        protein_goal_g: toNullableInt(proteinGoalStr),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from("weekly_goals").upsert(payload, { onConflict: "user_id,week_start" });
+      if (error) throw error;
+
+      setGoalMsg("Saved goals for this week.");
+      await loadWeeklyGoal(weekStart);
+    } catch (e: any) {
+      setGoalMsg(e?.message ?? "Error saving goals");
+    } finally {
+      setSavingGoal(false);
+    }
+  }
+
   async function loadWeek(weekStartYmd: string) {
     setErrorMsg(null);
     setLoading(true);
+    setGoalMsg(null);
 
     try {
+      await loadWeeklyGoal(weekStartYmd);
+
       const start = new Date(`${weekStartYmd}T00:00:00`);
       const days: string[] = [];
       for (let i = 0; i < 7; i++) {
@@ -172,7 +292,6 @@ export default function WeekPage() {
       setWeekRows(rows);
       setWeekTotals(wt);
 
-      // keep expanded/cached only for days in this week
       const allowed = new Set(rows.map((r) => r.dateStr));
 
       setOpenDays((prev) => {
@@ -218,7 +337,6 @@ export default function WeekPage() {
     setWeekStart(ymd(d));
   }
 
-  // pick any date -> jump to that week’s Monday
   function onPickWeek(anyDateInWeek: string) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(anyDateInWeek)) return;
     setWeekStart(ymd(startOfWeekMonday(anyDateInWeek)));
@@ -240,7 +358,6 @@ export default function WeekPage() {
 
     setOpenDays((prev) => new Set(prev).add(dayStr));
 
-    // cached?
     if (entriesByDay[dayStr]) return;
 
     setLoadingDays((prev) => new Set(prev).add(dayStr));
@@ -282,6 +399,14 @@ export default function WeekPage() {
     }
   }
 
+  const mode = weeklyGoal?.mode ?? "cut";
+
+  const weeklyCalTarget = weeklyGoal?.calorie_goal != null ? weeklyGoal.calorie_goal * 7 : null;
+  const weeklyProtTarget = weeklyGoal?.protein_goal_g != null ? weeklyGoal.protein_goal_g * 7 : null;
+
+  const calPct = pctRaw(weekTotals.calories, weeklyCalTarget);
+  const protPct = pctRaw(weekTotals.protein, weeklyProtTarget);
+
   return (
     <div className={styles.page}>
       <Nav />
@@ -297,6 +422,60 @@ export default function WeekPage() {
             </div>
           </div>
         </div>
+
+        {weeklyGoal && (weeklyCalTarget != null || weeklyProtTarget != null) ? (
+          <div className={styles.progressCard}>
+            <div className={styles.mutedSmall}>
+              Mode: <b>{mode.toUpperCase()}</b> · Week of <b>{weekStart}</b>
+            </div>
+
+            <div className={styles.goalGrid}>
+              {weeklyCalTarget != null ? (
+                <div className={styles.goalItem}>
+                  <div
+                    className={styles.ring}
+                    style={
+                      {
+                        ["--p" as any]: `${pctClamped(weekTotals.calories, weeklyCalTarget)}`,
+                        ["--ringColor" as any]: ringColorCalories(calPct, mode),
+                      } as React.CSSProperties
+                    }
+                  >
+                    <div className={styles.ringInner}>
+                      <div className={styles.ringTitle}>Calories</div>
+                      <div className={styles.ringValue}>
+                        {weekTotals.calories} / {weeklyCalTarget}
+                      </div>
+                      <div className={styles.ringSub}>{Math.round(calPct)}%</div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {weeklyProtTarget != null ? (
+                <div className={styles.goalItem}>
+                  <div
+                    className={styles.ring}
+                    style={
+                      {
+                        ["--p" as any]: `${pctClamped(weekTotals.protein, weeklyProtTarget)}`,
+                        ["--ringColor" as any]: ringColorProtein(protPct),
+                      } as React.CSSProperties
+                    }
+                  >
+                    <div className={styles.ringInner}>
+                      <div className={styles.ringTitle}>Protein</div>
+                      <div className={styles.ringValue}>
+                        {weekTotals.protein} / {weeklyProtTarget} g
+                      </div>
+                      <div className={styles.ringSub}>{Math.round(protPct)}%</div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className={styles.controlsRow}>
           <span className={styles.dateLabel}>Week of</span>
@@ -314,12 +493,51 @@ export default function WeekPage() {
             </button>
           </div>
 
+          <label className={styles.field}>
+            Mode
+            <select className={styles.select} value={goalMode} onChange={(e) => setGoalMode(e.target.value as any)} disabled={loading || savingGoal}>
+              <option value="bulk">Bulk</option>
+              <option value="cut">Cut</option>
+            </select>
+          </label>
+
+          <label className={styles.field}>
+            Calories goal
+            <input
+              className={styles.numInput}
+              type="number"
+              inputMode="numeric"
+              value={calorieGoalStr}
+              onChange={(e) => setCalorieGoalStr(e.target.value)}
+              placeholder="e.g. 2200"
+              disabled={loading || savingGoal}
+            />
+          </label>
+
+          <label className={styles.field}>
+            Protein goal (g)
+            <input
+              className={styles.numInput}
+              type="number"
+              inputMode="numeric"
+              value={proteinGoalStr}
+              onChange={(e) => setProteinGoalStr(e.target.value)}
+              placeholder="e.g. 180"
+              disabled={loading || savingGoal}
+            />
+          </label>
+
+          <button className={styles.button} onClick={saveWeeklyGoal} disabled={loading || savingGoal}>
+            {savingGoal ? "Saving…" : "Save goals"}
+          </button>
+
           <div className={styles.weekTotals}>
             <span>Start:</span>
             <span>{weekStart}</span>
           </div>
         </div>
 
+        {goalMsg ? <div className={styles.mutedSmall}>{goalMsg}</div> : null}
         {errorMsg ? <div className={styles.error}>{errorMsg}</div> : null}
 
         <div className={styles.section}>

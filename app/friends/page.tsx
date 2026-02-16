@@ -15,7 +15,7 @@ type Entry = {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
-  grams: number; // NEW
+  grams: number;
   meal: string;
   created_at: string;
 };
@@ -26,6 +26,22 @@ type EntryRow = Entry & {
 };
 
 type Totals = { calories: number; protein: number; carbs: number; fat: number; grams: number };
+
+type WeeklyGoal = {
+  mode: "bulk" | "cut";
+  calorie_goal: number | null; // daily
+  protein_goal_g: number | null; // daily
+} | null;
+
+type WeeklyProgress = {
+  weekStart: string;
+  totals: Totals; // weekly totals
+  goal: WeeklyGoal; // weekly goal row
+  calTarget: number | null; // weekly target = daily * 7
+  protTarget: number | null; // weekly target = daily * 7
+  calPctRaw: number; // raw %
+  protPctRaw: number; // raw %
+};
 
 function emptyTotals(): Totals {
   return { calories: 0, protein: 0, carbs: 0, fat: 0, grams: 0 };
@@ -51,6 +67,66 @@ function totalsFromEntries(list: Entry[]): Totals {
   };
 }
 
+function ymd(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function startOfWeekMonday(dateStr: string): Date {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const day = d.getDay(); // 0=Sun
+  const diff = (day + 6) % 7; // Monday start
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+function pctRaw(value: number, goal: number | null): number {
+  if (!goal || goal <= 0) return 0;
+  return (value / goal) * 100;
+}
+
+function pctClamped(value: number, goal: number | null): number {
+  return Math.max(0, Math.min(100, pctRaw(value, goal)));
+}
+
+/**
+ * Calories:
+ * - BULK: low is bad (red) -> orange -> yellow -> green near goal; >100 stays green
+ * - CUT: low is good (green) -> yellow -> orange -> red at >=100 (over limit)
+ */
+function colorCalories(percentRaw: number, mode: "bulk" | "cut"): string {
+  const p = Number.isFinite(percentRaw) ? percentRaw : 0;
+
+  if (mode === "bulk") {
+    if (p < 50) return "rgba(239, 68, 68, 0.92)";
+    if (p < 75) return "rgba(245, 158, 11, 0.92)";
+    if (p < 90) return "rgba(234, 179, 8, 0.92)";
+    return "rgba(16, 185, 129, 0.92)";
+  }
+
+  // cut
+  if (p >= 100) return "rgba(239, 68, 68, 0.92)";
+  if (p >= 90) return "rgba(245, 158, 11, 0.92)";
+  if (p >= 75) return "rgba(234, 179, 8, 0.92)";
+  return "rgba(16, 185, 129, 0.92)";
+}
+
+/**
+ * Protein (both modes):
+ * low = red -> orange -> yellow -> green as it approaches goal
+ * at 100% and above: still GREEN
+ */
+function colorProtein(percentRaw: number): string {
+  const p = Number.isFinite(percentRaw) ? percentRaw : 0;
+
+  if (p < 50) return "rgba(239, 68, 68, 0.92)";
+  if (p < 75) return "rgba(245, 158, 11, 0.92)";
+  if (p < 90) return "rgba(234, 179, 8, 0.92)";
+  return "rgba(16, 185, 129, 0.92)";
+}
+
 export default function FriendsPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const [meId, setMeId] = useState<string | null>(null);
@@ -64,6 +140,10 @@ export default function FriendsPage() {
   const [totalsByFriend, setTotalsByFriend] = useState<Record<string, Totals>>({});
   const [grandTotals, setGrandTotals] = useState<Totals>(emptyTotals());
 
+  // NEW: weekly progress by friend
+  const [weekStartStr, setWeekStartStr] = useState<string>(() => ymd(startOfWeekMonday(new Date().toISOString().slice(0, 10))));
+  const [weeklyByFriend, setWeeklyByFriend] = useState<Record<string, WeeklyProgress>>({});
+
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -73,6 +153,12 @@ export default function FriendsPage() {
       else setMeId(data.user.id);
     });
   }, [supabase]);
+
+  useEffect(() => {
+    // keep weekStart in sync with selected date
+    const ws = ymd(startOfWeekMonday(dateStr));
+    setWeekStartStr(ws);
+  }, [dateStr]);
 
   useEffect(() => {
     if (!meId) return;
@@ -85,11 +171,16 @@ export default function FriendsPage() {
       setRows([]);
       setTotalsByFriend({});
       setGrandTotals(emptyTotals());
+      setWeeklyByFriend({});
       return;
     }
-    loadSelectedFriendsDay(selectedFriendIds, dateStr);
+
+    // load day entries + weekly progress
+    void loadSelectedFriendsDay(selectedFriendIds, dateStr);
+    void loadSelectedFriendsWeekProgress(selectedFriendIds, weekStartStr);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFriendIds, dateStr]);
+  }, [selectedFriendIds, dateStr, weekStartStr]);
 
   async function loadFriends() {
     setMsg(null);
@@ -263,6 +354,116 @@ export default function FriendsPage() {
     }
   }
 
+  // NEW: weekly progress
+  async function loadSelectedFriendsWeekProgress(friendIds: string[], weekStartYmd: string) {
+    try {
+      // 1) load weekly goals for friends
+      const { data: goals, error: gErr } = await supabase
+        .from("weekly_goals")
+        .select("user_id, week_start, mode, calorie_goal, protein_goal_g")
+        .in("user_id", friendIds)
+        .eq("week_start", weekStartYmd);
+
+      if (gErr) throw gErr;
+
+      const goalByUser = new Map<string, WeeklyGoal>();
+      for (const r of (goals ?? []) as any[]) {
+        const uid = r.user_id as string;
+        const mode: "bulk" | "cut" = r.mode === "bulk" ? "bulk" : "cut";
+        goalByUser.set(uid, {
+          mode,
+          calorie_goal: r.calorie_goal ?? null,
+          protein_goal_g: r.protein_goal_g ?? null,
+        });
+      }
+
+      // 2) compute the 7 days of the week
+      const start = new Date(`${weekStartYmd}T00:00:00`);
+      const days: string[] = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        days.push(ymd(d));
+      }
+
+      // 3) load daily logs for that week for those users
+      const { data: logs, error: logsErr } = await supabase
+        .from("daily_logs")
+        .select("id, user_id, log_date")
+        .in("user_id", friendIds)
+        .in("log_date", days);
+
+      if (logsErr) throw logsErr;
+
+      const logIdToUser = new Map<string, string>();
+      const logIds: string[] = [];
+
+      for (const l of (logs ?? []) as any[]) {
+        if (l?.id && l?.user_id) {
+          logIdToUser.set(l.id, l.user_id);
+          logIds.push(l.id);
+        }
+      }
+
+      // if no logs, everyone has 0 totals
+      const totalsByUser: Record<string, Totals> = {};
+      for (const uid of friendIds) totalsByUser[uid] = emptyTotals();
+
+      if (logIds.length > 0) {
+        const { data: ents, error: eErr } = await supabase
+          .from("food_entries")
+          .select("daily_log_id, calories, protein_g, carbs_g, fat_g, grams")
+          .in("daily_log_id", logIds);
+
+        if (eErr) throw eErr;
+
+        for (const e of (ents ?? []) as any[]) {
+          const uid = logIdToUser.get(e.daily_log_id as string);
+          if (!uid) continue;
+
+          const cur = totalsByUser[uid] ?? emptyTotals();
+          totalsByUser[uid] = {
+            calories: cur.calories + (e.calories ?? 0),
+            protein: cur.protein + (e.protein_g ?? 0),
+            carbs: cur.carbs + (e.carbs_g ?? 0),
+            fat: cur.fat + (e.fat_g ?? 0),
+            grams: cur.grams + (e.grams ?? 0),
+          };
+        }
+      }
+
+      // 4) build progress objects
+      const next: Record<string, WeeklyProgress> = {};
+      for (const uid of friendIds) {
+        const goal = goalByUser.get(uid) ?? null;
+        const totals = totalsByUser[uid] ?? emptyTotals();
+
+        const calTarget = goal?.calorie_goal != null ? goal.calorie_goal * 7 : null;
+        const protTarget = goal?.protein_goal_g != null ? goal.protein_goal_g * 7 : null;
+
+        const calPctRaw = pctRaw(totals.calories, calTarget);
+        const protPctRaw = pctRaw(totals.protein, protTarget);
+
+        next[uid] = {
+          weekStart: weekStartYmd,
+          totals,
+          goal,
+          calTarget,
+          protTarget,
+          calPctRaw,
+          protPctRaw,
+        };
+      }
+
+      setWeeklyByFriend(next);
+    } catch (e: any) {
+      // don't break the whole page if weekly progress fails
+      setWeeklyByFriend({});
+      // optionally show message only if you want
+      // setMsg(e?.message ?? "Error loading weekly progress");
+    }
+  }
+
   function toggleFriend(id: string) {
     setSelectedFriendIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
@@ -310,12 +511,7 @@ export default function FriendsPage() {
                   return (
                     <li key={f.user_id} className={styles.friendItem}>
                       <label className={styles.friendLabel}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleFriend(f.user_id)}
-                          className={styles.checkbox}
-                        />
+                        <input type="checkbox" checked={checked} onChange={() => toggleFriend(f.user_id)} className={styles.checkbox} />
                         <span>{f.display_name}</span>
                       </label>
                     </li>
@@ -334,13 +530,111 @@ export default function FriendsPage() {
 
               <div className={styles.topRowRight}>
                 <label className={styles.dateLabel}>
-                  Date{" "}
-                  <DatePicker value={dateStr} onChange={(newDate) => setDateStr(newDate)} />
+                  Date <DatePicker value={dateStr} onChange={(newDate) => setDateStr(newDate)} />
                 </label>
+
+                <div className={styles.weekChip}>
+                  Week of <b>{weekStartStr}</b>
+                </div>
               </div>
             </div>
 
             {msg && <p className={styles.error}>{msg}</p>}
+
+            {/* NEW: WEEKLY PROGRESS */}
+            <div className={styles.section}>
+              <h2 className={styles.sectionTitle}>Weekly progress</h2>
+
+              {selectedFriendIds.length === 0 ? (
+                <p className={styles.muted}>Select one or more people to view weekly progress.</p>
+              ) : (
+                <div className={styles.progressList}>
+                  {selectedFriendIds
+                    .map((id) => {
+                      const f = friends.find((x) => x.user_id === id);
+                      const wp = weeklyByFriend[id];
+                      return { id, name: f?.display_name ?? "(unknown)", wp };
+                    })
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(({ id, name, wp }) => {
+                      const goal = wp?.goal ?? null;
+                      const mode: "bulk" | "cut" = goal?.mode ?? "cut";
+
+                      const calTarget = wp?.calTarget ?? null;
+                      const protTarget = wp?.protTarget ?? null;
+
+                      const calPct = wp ? pctClamped(wp.totals.calories, calTarget) : 0;
+                      const protPct = wp ? pctClamped(wp.totals.protein, protTarget) : 0;
+
+                      const calColor = wp ? colorCalories(wp.calPctRaw, mode) : "rgba(255,255,255,0.25)";
+                      const protColor = wp ? colorProtein(wp.protPctRaw) : "rgba(255,255,255,0.25)";
+
+                      return (
+                        <div key={id} className={styles.progressCard}>
+                          <div className={styles.progressHeader}>
+                            <div className={styles.progressName}>{name}</div>
+                            <div className={styles.progressMeta}>
+                              <span className={styles.modeBadge}>{goal ? mode.toUpperCase() : "NO GOALS"}</span>
+                            </div>
+                          </div>
+
+                          {!goal || (calTarget == null && protTarget == null) ? (
+                            <div className={styles.progressEmpty}>No weekly goals set for this person.</div>
+                          ) : (
+                            <div className={styles.progressBars}>
+                              {/* Calories */}
+                              {calTarget != null ? (
+                                <div className={styles.progressRow}>
+                                  <div className={styles.progressLabel}>
+                                    <span>Calories</span>
+                                    <span className={styles.progressNums}>
+                                      {wp?.totals.calories ?? 0} / {calTarget} · {Math.round(wp?.calPctRaw ?? 0)}%
+                                    </span>
+                                  </div>
+                                  <div className={styles.barTrack}>
+                                    <div
+                                      className={styles.barFill}
+                                      style={
+                                        {
+                                          width: `${calPct}%`,
+                                          background: calColor,
+                                        } as React.CSSProperties
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              ) : null}
+
+                              {/* Protein */}
+                              {protTarget != null ? (
+                                <div className={styles.progressRow}>
+                                  <div className={styles.progressLabel}>
+                                    <span>Protein</span>
+                                    <span className={styles.progressNums}>
+                                      {wp?.totals.protein ?? 0} / {protTarget} g · {Math.round(wp?.protPctRaw ?? 0)}%
+                                    </span>
+                                  </div>
+                                  <div className={styles.barTrack}>
+                                    <div
+                                      className={styles.barFill}
+                                      style={
+                                        {
+                                          width: `${protPct}%`,
+                                          background: protColor,
+                                        } as React.CSSProperties
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
 
             {/* SUMMARY TABLE */}
             <div className={styles.section}>
@@ -393,9 +687,7 @@ export default function FriendsPage() {
             <div className={styles.section}>
               <h2 className={styles.sectionTitle}>Entries</h2>
 
-              {selectedFriendIds.length > 0 && rows.length === 0 ? (
-                <p className={styles.muted}>No entries for this day.</p>
-              ) : null}
+              {selectedFriendIds.length > 0 && rows.length === 0 ? <p className={styles.muted}>No entries for this day.</p> : null}
 
               <div className={styles.tableWrap}>
                 <table className={styles.table}>

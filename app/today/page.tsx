@@ -29,11 +29,25 @@ type Totals = {
   grams: number;
 };
 
+type WeeklyGoal = {
+  mode: "bulk" | "cut";
+  calorie_goal: number | null;
+  protein_goal_g: number | null;
+} | null;
+
 function ymd(d: Date): string {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function startOfWeekMonday(dateStr: string): Date {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const day = d.getDay(); // 0=Sun
+  const diff = (day + 6) % 7; // Monday start
+  d.setDate(d.getDate() - diff);
+  return d;
 }
 
 function toNullableInt(v: string): number | null {
@@ -63,6 +77,51 @@ function parseWeightKg(v: string): number | null {
   if (!Number.isFinite(n)) return null;
   if (n <= 0) return null;
   return Math.round(n * 100) / 100;
+}
+
+function pctRaw(value: number, goal: number | null): number {
+  if (!goal || goal <= 0) return 0;
+  return (value / goal) * 100;
+}
+
+function pctClamped(value: number, goal: number | null): number {
+  return Math.max(0, Math.min(100, pctRaw(value, goal)));
+}
+
+/**
+ * Calories:
+ * - BULK: low is bad (red) -> orange -> yellow -> green near goal; >100 stays green
+ * - CUT: low is good (green) -> yellow -> orange -> red at >=100 (over limit)
+ */
+function ringColorCalories(percentRaw: number, mode: "bulk" | "cut"): string {
+  const p = Number.isFinite(percentRaw) ? percentRaw : 0;
+
+  if (mode === "bulk") {
+    if (p < 50) return "rgba(239, 68, 68, 0.92)"; // red
+    if (p < 75) return "rgba(245, 158, 11, 0.92)"; // orange
+    if (p < 90) return "rgba(234, 179, 8, 0.92)"; // yellow
+    return "rgba(16, 185, 129, 0.92)"; // green (>=90, including >100)
+  }
+
+  // cut
+  if (p >= 100) return "rgba(239, 68, 68, 0.92)"; // red (over)
+  if (p >= 90) return "rgba(245, 158, 11, 0.92)"; // orange
+  if (p >= 75) return "rgba(234, 179, 8, 0.92)"; // yellow
+  return "rgba(16, 185, 129, 0.92)"; // green
+}
+
+/**
+ * Protein (both modes):
+ * low = red -> orange -> yellow -> green as it approaches goal
+ * at 100% and above: still GREEN
+ */
+function ringColorProtein(percentRaw: number): string {
+  const p = Number.isFinite(percentRaw) ? percentRaw : 0;
+
+  if (p < 50) return "rgba(239, 68, 68, 0.92)"; // red
+  if (p < 75) return "rgba(245, 158, 11, 0.92)"; // orange
+  if (p < 90) return "rgba(234, 179, 8, 0.92)"; // yellow
+  return "rgba(16, 185, 129, 0.92)"; // green (>=90, including >100)
 }
 
 type EditDraft = {
@@ -102,6 +161,9 @@ function TodayInner() {
   const [totals, setTotals] = useState<Totals>(emptyTotals());
 
   const [weightKg, setWeightKg] = useState<string>("");
+
+  const [weekStart, setWeekStart] = useState<string>(() => ymd(startOfWeekMonday(ymd(new Date()))));
+  const [weeklyGoal, setWeeklyGoal] = useState<WeeklyGoal>(null);
 
   const [name, setName] = useState("");
   const [grams, setGrams] = useState("");
@@ -143,6 +205,35 @@ function TodayInner() {
     void ensureLogAndLoadDay(dateStr);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, dateStr]);
+
+  // load weekly goals for this date's week
+  useEffect(() => {
+    if (!userId) return;
+
+    const ws = ymd(startOfWeekMonday(dateStr));
+    setWeekStart(ws);
+
+    void (async () => {
+      const { data, error } = await supabase
+        .from("weekly_goals")
+        .select("mode, calorie_goal, protein_goal_g")
+        .eq("user_id", userId)
+        .eq("week_start", ws)
+        .maybeSingle();
+
+      if (error || !data) {
+        setWeeklyGoal(null);
+        return;
+      }
+
+      const m = (data as any).mode === "bulk" ? "bulk" : "cut";
+      setWeeklyGoal({
+        mode: m,
+        calorie_goal: (data as any).calorie_goal ?? null,
+        protein_goal_g: (data as any).protein_goal_g ?? null,
+      });
+    })();
+  }, [userId, dateStr, supabase]);
 
   async function ensureLogAndLoadDay(day: string) {
     setErrorMsg(null);
@@ -196,7 +287,6 @@ function TodayInner() {
       };
       setTotals(t);
 
-      // If the edited row disappeared (date change), exit edit mode safely
       if (editingId && !list.some((x) => x.id === editingId)) {
         setEditingId(null);
         setEditDraft(null);
@@ -277,7 +367,6 @@ function TodayInner() {
     setLoading(true);
 
     try {
-      // If deleting the one currently being edited, exit edit mode
       if (editingId === id) {
         setEditingId(null);
         setEditDraft(null);
@@ -342,6 +431,10 @@ function TodayInner() {
     }
   }
 
+  const mode = weeklyGoal?.mode ?? "cut";
+  const calPct = pctRaw(totals.calories, weeklyGoal?.calorie_goal ?? null);
+  const protPct = pctRaw(totals.protein, weeklyGoal?.protein_goal_g ?? null);
+
   return (
     <div className={styles.page}>
       <Nav />
@@ -358,6 +451,68 @@ function TodayInner() {
             </div>
           </div>
         </div>
+
+        {weeklyGoal && (weeklyGoal.calorie_goal != null || weeklyGoal.protein_goal_g != null) ? (
+          <div className={styles.progressCard}>
+            <div className={styles.mutedSmall}>
+              Mode: <b>{weeklyGoal.mode.toUpperCase()}</b> · Week of <b>{weekStart}</b>
+            </div>
+
+            <div className={styles.goalGrid}>
+              {weeklyGoal.calorie_goal != null ? (
+                <div className={styles.goalItem}>
+                  <div
+                    className={styles.ring}
+                    style={
+                      {
+                        ["--p" as any]: `${pctClamped(totals.calories, weeklyGoal.calorie_goal)}`,
+                        ["--ringColor" as any]: ringColorCalories(calPct, mode),
+                      } as React.CSSProperties
+                    }
+                  >
+                    <div className={styles.ringInner}>
+                      <div className={styles.ringTitle}>Calories</div>
+                      <div className={styles.ringValue}>
+                        {totals.calories} / {weeklyGoal.calorie_goal}
+                      </div>
+                      <div className={styles.ringSub}>{Math.round(calPct)}%</div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {weeklyGoal.protein_goal_g != null ? (
+                <div className={styles.goalItem}>
+                  <div
+                    className={styles.ring}
+                    style={
+                      {
+                        ["--p" as any]: `${pctClamped(totals.protein, weeklyGoal.protein_goal_g)}`,
+                        ["--ringColor" as any]: ringColorProtein(protPct),
+                      } as React.CSSProperties
+                    }
+                  >
+                    <div className={styles.ringInner}>
+                      <div className={styles.ringTitle}>Protein</div>
+                      <div className={styles.ringValue}>
+                        {totals.protein} / {weeklyGoal.protein_goal_g} g
+                      </div>
+                      <div className={styles.ringSub}>{Math.round(protPct)}%</div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className={styles.mutedSmall}>
+              Set goals in <b>Week</b>.
+            </div>
+          </div>
+        ) : (
+          <div className={styles.mutedSmall} style={{ marginTop: 10 }}>
+            No goals set for this week yet. Set them in <b>Week</b>.
+          </div>
+        )}
 
         <div className={styles.controlsRow}>
           <label className={styles.dateLabel}>
@@ -387,23 +542,12 @@ function TodayInner() {
           </div>
 
           <div className={styles.card}>
-            <input
-              className={styles.textInput}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Food name (fast manual entry)"
-            />
+            <input className={styles.textInput} value={name} onChange={(e) => setName(e.target.value)} placeholder="Food name (fast manual entry)" />
 
             <div className={styles.formRow}>
               <label className={styles.field}>
                 grams (g)
-                <input
-                  className={styles.numInput}
-                  value={grams}
-                  onChange={(e) => setGrams(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="g"
-                />
+                <input className={styles.numInput} value={grams} onChange={(e) => setGrams(e.target.value)} inputMode="numeric" placeholder="g" />
               </label>
 
               <label className={styles.field}>
@@ -482,7 +626,7 @@ function TodayInner() {
                           <td className={`${styles.td} ${styles.tdNum}`}>{e.fat_g ?? 0}</td>
                           <td className={styles.td}>
                             <button className={styles.button} onClick={() => startEdit(e)} disabled={loading}>
-                            Edit
+                              Edit
                             </button>
                             <button className={styles.dangerButton} onClick={() => deleteEntry(e.id)} disabled={loading}>
                               delete
@@ -492,7 +636,6 @@ function TodayInner() {
                       );
                     }
 
-                    // editing row
                     return (
                       <tr key={e.id} className={styles.tr}>
                         <td className={styles.td}>
@@ -569,25 +712,16 @@ function TodayInner() {
                         </td>
 
                         <td className={styles.td}>
-  <div className={styles.editActions}>
-    <button
-      className={styles.primaryButton}
-      onClick={() => saveEdit(e.id)}
-      disabled={loading}
-    >
-      save
-    </button>
+                          <div className={styles.editActions}>
+                            <button className={styles.primaryButton} onClick={() => saveEdit(e.id)} disabled={loading}>
+                              save
+                            </button>
 
-    <button
-      className={styles.button}
-      onClick={cancelEdit}
-      disabled={loading}
-    >
-      cancel
-    </button>
-  </div>
-</td>
-
+                            <button className={styles.button} onClick={cancelEdit} disabled={loading}>
+                              cancel
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
