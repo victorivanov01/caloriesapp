@@ -296,6 +296,55 @@
 .table {
   width: 100%;
   border-collapse: collapse;
+
+  /* ✅ keeps the table from resizing when inputs appear */
+  table-layout: fixed;
+}
+
+/* ✅ stable column widths so Edit mode can't change layout */
+.table th:nth-child(1),
+.table td:nth-child(1) {
+  width: 120px; /* Meal */
+}
+
+.table th:nth-child(2),
+.table td:nth-child(2) {
+  width: auto; /* Item (flex) */
+}
+
+.table th:nth-child(3),
+.table td:nth-child(3) {
+  width: 70px; /* g */
+}
+
+.table th:nth-child(4),
+.table td:nth-child(4) {
+  width: 80px; /* kcal */
+}
+
+.table th:nth-child(5),
+.table td:nth-child(5),
+.table th:nth-child(6),
+.table td:nth-child(6),
+.table th:nth-child(7),
+.table td:nth-child(7) {
+  width: 60px; /* P/C/F */
+}
+
+.table th:nth-child(8),
+.table td:nth-child(8) {
+  width: 170px; /* actions */
+}
+
+/* Item cell: allow wrapping without changing column width */
+.table td:nth-child(2) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Actions: never wrap into multiple lines */
+.table td:nth-child(8) {
+  white-space: nowrap;
 }
 
 .th {
@@ -426,8 +475,16 @@
   margin-left: 8px;
 }
 
+/* ✅ inputs/selects inside table MUST fit the cell (no column push) */
+.td .numInput,
+.td .textInput,
+.td .select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .td .numInput {
-  width: 90px;
   height: 34px;
   padding: 6px 8px;
 }
@@ -441,6 +498,7 @@
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: nowrap;
 }
 
 /* ===== Goals progress (CIRCULAR RINGS) ===== */
@@ -486,21 +544,17 @@
   height: 148px;
   border-radius: 999px;
 
-  /* rotate a tiny bit so the conic seam isn't on the sides */
   background: conic-gradient(from 90deg, var(--ringColor) calc(var(--p) * 1%), var(--track) 0);
 
   display: grid;
   place-items: center;
 
-  /* removing border eliminates most “popping”/halo artifacts */
   border: none;
 
-  /* keep the same feel (outline + shadow) without edge artifacts */
   box-shadow:
     0 10px 24px rgba(0, 0, 0, 0.24),
     inset 0 0 0 1px rgba(255, 255, 255, 0.10);
 
-  /* help browsers render the gradient cleaner */
   transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-font-smoothing: antialiased;

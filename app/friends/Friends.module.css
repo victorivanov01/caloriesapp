@@ -280,17 +280,7 @@
   color: rgba(255, 220, 220, 0.95);
 }
 
-/* NEW: week chip */
-.weekChip {
-  padding: 8px 10px;
-  border-radius: 14px;
-  background: var(--card2);
-  border: 1px solid var(--border);
-  color: rgba(231, 234, 240, 0.88);
-  font-size: 13px;
-}
-
-/* NEW: weekly progress UI */
+/* Daily progress UI */
 .progressList {
   display: grid;
   gap: 10px;
@@ -386,17 +376,17 @@
 
   .layout {
     flex-direction: column;
-    align-items: stretch; /* make cards same width */
+    align-items: stretch;
   }
 
   .card {
-    flex: 1 1 auto; /* remove desktop flex-basis */
+    flex: 1 1 auto;
     width: 100%;
   }
 
   .card:first-child {
     flex: 1 1 auto;
-    min-width: 0; /* allow proper shrinking */
+    min-width: 0;
   }
 
   .totalsInline {
