@@ -7,6 +7,7 @@ import Nav from "@/components/Nav";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import styles from "./Today.module.css";
 import { useSearchParams } from "next/navigation";
+import DatePicker from "@/components/DatePicker";
 
 type Entry = {
   id: string;
@@ -64,6 +65,28 @@ function parseWeightKg(v: string): number | null {
   return Math.round(n * 100) / 100;
 }
 
+type EditDraft = {
+  name: string;
+  grams: string;
+  calories: string;
+  protein: string;
+  carbs: string;
+  fat: string;
+  meal: string;
+};
+
+function toDraft(e: Entry): EditDraft {
+  return {
+    name: e.name ?? "",
+    grams: e.grams != null ? String(e.grams) : "",
+    calories: e.calories != null ? String(e.calories) : "",
+    protein: e.protein_g != null ? String(e.protein_g) : "",
+    carbs: e.carbs_g != null ? String(e.carbs_g) : "",
+    fat: e.fat_g != null ? String(e.fat_g) : "",
+    meal: (e.meal ?? "Snack") || "Snack",
+  };
+}
+
 function TodayInner() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const searchParams = useSearchParams();
@@ -87,6 +110,9 @@ function TodayInner() {
   const [carbs, setCarbs] = useState("");
   const [fat, setFat] = useState("");
   const [meal, setMeal] = useState("Snack");
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -169,11 +195,19 @@ function TodayInner() {
         grams: list.reduce((s, x) => s + (x.grams ?? 0), 0),
       };
       setTotals(t);
+
+      // If the edited row disappeared (date change), exit edit mode safely
+      if (editingId && !list.some((x) => x.id === editingId)) {
+        setEditingId(null);
+        setEditDraft(null);
+      }
     } catch (e: any) {
       setErrorMsg(e?.message ?? "Error");
       setEntries([]);
       setTotals(emptyTotals());
       setDailyLogId(null);
+      setEditingId(null);
+      setEditDraft(null);
     } finally {
       setLoading(false);
     }
@@ -243,8 +277,62 @@ function TodayInner() {
     setLoading(true);
 
     try {
+      // If deleting the one currently being edited, exit edit mode
+      if (editingId === id) {
+        setEditingId(null);
+        setEditDraft(null);
+      }
+
       const { error } = await supabase.from("food_entries").delete().eq("id", id);
       if (error) throw error;
+
+      await ensureLogAndLoadDay(dateStr);
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? "Error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startEdit(e: Entry) {
+    setEditingId(e.id);
+    setEditDraft(toDraft(e));
+    setErrorMsg(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft(null);
+  }
+
+  async function saveEdit(id: string) {
+    if (!editDraft) return;
+
+    const newName = editDraft.name.trim();
+    if (!newName) {
+      setErrorMsg("Food name is required.");
+      return;
+    }
+
+    setErrorMsg(null);
+    setLoading(true);
+
+    try {
+      const payload = {
+        name: newName,
+        grams: toNullableInt(editDraft.grams),
+        calories: toIntOrZero(editDraft.calories),
+        protein_g: toIntOrZero(editDraft.protein),
+        carbs_g: toIntOrZero(editDraft.carbs),
+        fat_g: toIntOrZero(editDraft.fat),
+        meal: editDraft.meal,
+      };
+
+      const { error } = await supabase.from("food_entries").update(payload).eq("id", id);
+      if (error) throw error;
+
+      setEditingId(null);
+      setEditDraft(null);
 
       await ensureLogAndLoadDay(dateStr);
     } catch (e: any) {
@@ -272,8 +360,9 @@ function TodayInner() {
         </div>
 
         <div className={styles.controlsRow}>
-          <span className={styles.dateLabel}>Date</span>
-          <input className={styles.dateInput} type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} />
+          <label className={styles.dateLabel}>
+            Date <DatePicker value={dateStr} onChange={setDateStr} />
+          </label>
 
           <label className={styles.field}>
             Weight (kg)
@@ -308,7 +397,13 @@ function TodayInner() {
             <div className={styles.formRow}>
               <label className={styles.field}>
                 grams (g)
-                <input className={styles.numInput} value={grams} onChange={(e) => setGrams(e.target.value)} inputMode="numeric" placeholder="g" />
+                <input
+                  className={styles.numInput}
+                  value={grams}
+                  onChange={(e) => setGrams(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="g"
+                />
               </label>
 
               <label className={styles.field}>
@@ -367,36 +462,135 @@ function TodayInner() {
                     <th className={`${styles.th} ${styles.thNum}`}>P</th>
                     <th className={`${styles.th} ${styles.thNum}`}>C</th>
                     <th className={`${styles.th} ${styles.thNum}`}>F</th>
-                    <th className={styles.th}>Time</th>
                     <th className={styles.th}></th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {entries.map((e) => (
-                    <tr key={e.id} className={styles.tr}>
-                      <td className={styles.td}>{e.meal ?? ""}</td>
-                      <td className={styles.td}>{e.name}</td>
-                      <td className={`${styles.td} ${styles.tdNum}`}>{e.grams ?? "-"}</td>
-                      <td className={`${styles.td} ${styles.tdNum}`}>{e.calories ?? 0}</td>
-                      <td className={`${styles.td} ${styles.tdNum}`}>{e.protein_g ?? 0}</td>
-                      <td className={`${styles.td} ${styles.tdNum}`}>{e.carbs_g ?? 0}</td>
-                      <td className={`${styles.td} ${styles.tdNum}`}>{e.fat_g ?? 0}</td>
-                      <td className={`${styles.td} ${styles.tdSmall}`}>
-                        {e.created_at
-                          ? new Date(e.created_at).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : ""}
-                      </td>
-                      <td className={styles.td}>
-                        <button className={styles.dangerButton} onClick={() => deleteEntry(e.id)} disabled={loading}>
-                          delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {entries.map((e) => {
+                    const isEditing = editingId === e.id;
+
+                    if (!isEditing) {
+                      return (
+                        <tr key={e.id} className={styles.tr}>
+                          <td className={styles.td}>{e.meal ?? ""}</td>
+                          <td className={styles.td}>{e.name}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{e.grams ?? "-"}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{e.calories ?? 0}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{e.protein_g ?? 0}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{e.carbs_g ?? 0}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{e.fat_g ?? 0}</td>
+                          <td className={styles.td}>
+                            <button className={styles.button} onClick={() => startEdit(e)} disabled={loading}>
+                            Edit
+                            </button>
+                            <button className={styles.dangerButton} onClick={() => deleteEntry(e.id)} disabled={loading}>
+                              delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    // editing row
+                    return (
+                      <tr key={e.id} className={styles.tr}>
+                        <td className={styles.td}>
+                          <select
+                            className={styles.select}
+                            value={editDraft?.meal ?? "Snack"}
+                            onChange={(ev) => setEditDraft((p) => (p ? { ...p, meal: ev.target.value } : p))}
+                            disabled={loading}
+                          >
+                            <option>Breakfast</option>
+                            <option>Lunch</option>
+                            <option>Dinner</option>
+                            <option>Snack</option>
+                          </select>
+                        </td>
+
+                        <td className={styles.td}>
+                          <input
+                            className={styles.textInput}
+                            value={editDraft?.name ?? ""}
+                            onChange={(ev) => setEditDraft((p) => (p ? { ...p, name: ev.target.value } : p))}
+                            disabled={loading}
+                          />
+                        </td>
+
+                        <td className={`${styles.td} ${styles.tdNum}`}>
+                          <input
+                            className={styles.numInput}
+                            value={editDraft?.grams ?? ""}
+                            onChange={(ev) => setEditDraft((p) => (p ? { ...p, grams: ev.target.value } : p))}
+                            inputMode="numeric"
+                            disabled={loading}
+                          />
+                        </td>
+
+                        <td className={`${styles.td} ${styles.tdNum}`}>
+                          <input
+                            className={styles.numInput}
+                            value={editDraft?.calories ?? ""}
+                            onChange={(ev) => setEditDraft((p) => (p ? { ...p, calories: ev.target.value } : p))}
+                            inputMode="numeric"
+                            disabled={loading}
+                          />
+                        </td>
+
+                        <td className={`${styles.td} ${styles.tdNum}`}>
+                          <input
+                            className={styles.numInput}
+                            value={editDraft?.protein ?? ""}
+                            onChange={(ev) => setEditDraft((p) => (p ? { ...p, protein: ev.target.value } : p))}
+                            inputMode="numeric"
+                            disabled={loading}
+                          />
+                        </td>
+
+                        <td className={`${styles.td} ${styles.tdNum}`}>
+                          <input
+                            className={styles.numInput}
+                            value={editDraft?.carbs ?? ""}
+                            onChange={(ev) => setEditDraft((p) => (p ? { ...p, carbs: ev.target.value } : p))}
+                            inputMode="numeric"
+                            disabled={loading}
+                          />
+                        </td>
+
+                        <td className={`${styles.td} ${styles.tdNum}`}>
+                          <input
+                            className={styles.numInput}
+                            value={editDraft?.fat ?? ""}
+                            onChange={(ev) => setEditDraft((p) => (p ? { ...p, fat: ev.target.value } : p))}
+                            inputMode="numeric"
+                            disabled={loading}
+                          />
+                        </td>
+
+                        <td className={styles.td}>
+  <div className={styles.editActions}>
+    <button
+      className={styles.primaryButton}
+      onClick={() => saveEdit(e.id)}
+      disabled={loading}
+    >
+      save
+    </button>
+
+    <button
+      className={styles.button}
+      onClick={cancelEdit}
+      disabled={loading}
+    >
+      cancel
+    </button>
+  </div>
+</td>
+
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

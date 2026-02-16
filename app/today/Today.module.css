@@ -424,3 +424,23 @@
 
 }
 
+.td button + button {
+  margin-left: 8px;
+}
+
+.td .numInput {
+  width: 90px;
+  height: 34px;
+  padding: 6px 8px;
+}
+
+.td .textInput {
+  height: 34px;
+  padding: 6px 8px;
+}
+
+.editActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
