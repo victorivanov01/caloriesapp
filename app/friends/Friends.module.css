@@ -390,16 +390,19 @@
 .reactionBar {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: wrap; /* ✅ keep wrap (2 lines is fine) */
   align-items: center;
 }
 
+/* ✅ FIX: badge no longer changes button size */
 .emojiBtn {
+  position: relative; /* ✅ needed for absolute badge */
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
 
-  padding: 6px 8px;
+  padding: 6px 10px; /* tiny bit more balanced since badge floats */
   border-radius: 12px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
@@ -418,9 +421,10 @@
   transform: translateY(1px);
 }
 
+/* ✅ Active state: no outer ring, no size change */
 .emojiBtnActive {
   border-color: rgba(99, 102, 241, 0.65);
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+  box-shadow: none;
   background: rgba(99, 102, 241, 0.14);
 }
 
@@ -429,12 +433,26 @@
   line-height: 1;
 }
 
+/* ✅ FLOATING badge (does not affect layout size at all) */
 .countBadge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
   font-size: 11px;
-  padding: 2px 6px;
+  line-height: 1;
+
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(8, 10, 18, 0.45);
+  background: rgba(8, 10, 18, 0.65);
   color: rgba(231, 234, 240, 0.85);
   font-variant-numeric: tabular-nums;
 }
