@@ -37,10 +37,10 @@
   margin-bottom: 12px;
 }
 
-.layout {
-  display: flex;
+/* ✅ STACKED layout */
+.layoutStack {
+  display: grid;
   gap: 16px;
-  flex-wrap: wrap;
 }
 
 .card {
@@ -51,13 +51,7 @@
   backdrop-filter: blur(10px);
 
   padding: 12px;
-  flex: 1 1 600px;
-}
-
-/* Keep your existing layout behavior */
-.card:first-child {
-  min-width: 300px;
-  flex: 0 0 300px;
+  min-width: 0;
 }
 
 .cardHeader {
@@ -214,11 +208,17 @@
   margin: 0 0 8px 0;
 }
 
+/* ✅ still scrolls on phones, but hide the scrollbar visuals */
 .tableWrap {
   overflow-x: auto;
   border-radius: 16px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.03);
+
+  scrollbar-width: none; /* Firefox */
+}
+.tableWrap::-webkit-scrollbar {
+  height: 0; /* Chrome/Safari */
 }
 
 .table {
@@ -278,6 +278,19 @@
   border: 1px solid rgba(239, 68, 68, 0.35);
   background: rgba(239, 68, 68, 0.10);
   color: rgba(255, 220, 220, 0.95);
+}
+
+/* ✅ Fix Item column wrapping / width */
+.itemTh {
+  width: 38%;
+  min-width: 260px;
+}
+
+.itemTd {
+  white-space: normal;
+  word-break: break-word;
+  min-width: 260px;
+  max-width: 520px;
 }
 
 /* Daily progress UI */
@@ -367,25 +380,74 @@
   transition: width 0.25s ease;
 }
 
-/* Mobile: stack cards cleanly */
+/* ===== Reactions UI (Entries table) — COMPACT ===== */
+
+.reactionsCellCompact {
+  display: inline-block;
+  min-width: 210px;
+}
+
+.reactionBar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.emojiBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 6px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(231, 234, 240, 0.95);
+  cursor: pointer;
+
+  transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.emojiBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border2);
+}
+
+.emojiBtn:active {
+  transform: translateY(1px);
+}
+
+.emojiBtnActive {
+  border-color: rgba(99, 102, 241, 0.65);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+  background: rgba(99, 102, 241, 0.14);
+}
+
+.emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.countBadge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 10, 18, 0.45);
+  color: rgba(231, 234, 240, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mobile: keep it clean */
 @media (max-width: 768px) {
   .container {
     margin: 16px auto;
     padding: 12px;
   }
 
-  .layout {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .card {
-    flex: 1 1 auto;
     width: 100%;
-  }
-
-  .card:first-child {
-    flex: 1 1 auto;
     min-width: 0;
   }
 
@@ -396,5 +458,10 @@
 
   .tableWrap {
     width: 100%;
+  }
+
+  .itemTh,
+  .itemTd {
+    min-width: 220px;
   }
 }

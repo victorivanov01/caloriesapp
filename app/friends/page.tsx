@@ -33,6 +33,19 @@ type WeeklyGoal = {
   protein_goal_g: number | null; // DAILY goal
 } | null;
 
+// Reactions row (joined with display_name client-side)
+type ReactionRow = {
+  id: string;
+  entry_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+  display_name: string;
+};
+
+// Only these emojis
+const QUICK_EMOJIS = ["🔥", "💪", "❤️", "💀", "😂", "😮", "😭"];
+
 function emptyTotals(): Totals {
   return { calories: 0, protein: 0, carbs: 0, fat: 0, grams: 0 };
 }
@@ -125,14 +138,19 @@ export default function FriendsPage() {
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
 
   const [dateStr, setDateStr] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [weekStartStr, setWeekStartStr] = useState<string>(() => ymd(startOfWeekMonday(new Date().toISOString().slice(0, 10))));
+  const [weekStartStr, setWeekStartStr] = useState<string>(() =>
+    ymd(startOfWeekMonday(new Date().toISOString().slice(0, 10)))
+  );
 
   const [rows, setRows] = useState<EntryRow[]>([]);
   const [totalsByFriend, setTotalsByFriend] = useState<Record<string, Totals>>({});
   const [grandTotals, setGrandTotals] = useState<Totals>(emptyTotals());
 
-  // NEW: goals (still loaded per week, but used for daily targets)
+  // goals
   const [goalsByFriend, setGoalsByFriend] = useState<Record<string, WeeklyGoal>>({});
+
+  // reactions
+  const [reactionsByEntry, setReactionsByEntry] = useState<Record<string, ReactionRow[]>>({});
 
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -160,6 +178,7 @@ export default function FriendsPage() {
       setTotalsByFriend({});
       setGrandTotals(emptyTotals());
       setGoalsByFriend({});
+      setReactionsByEntry({});
       return;
     }
 
@@ -168,6 +187,17 @@ export default function FriendsPage() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFriendIds, dateStr, weekStartStr]);
+
+  // whenever rows change, load reactions for those entry ids
+  useEffect(() => {
+    const entryIds = rows.map((r) => r.id);
+    if (entryIds.length === 0) {
+      setReactionsByEntry({});
+      return;
+    }
+    void loadReactions(entryIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows]);
 
   async function loadFriends() {
     setMsg(null);
@@ -261,6 +291,7 @@ export default function FriendsPage() {
         setRows([]);
         setTotalsByFriend({});
         setGrandTotals(emptyTotals());
+        setReactionsByEntry({});
         return;
       }
 
@@ -277,6 +308,7 @@ export default function FriendsPage() {
         setRows([]);
         setTotalsByFriend({});
         setGrandTotals(emptyTotals());
+        setReactionsByEntry({});
         return;
       }
 
@@ -336,12 +368,12 @@ export default function FriendsPage() {
       setRows([]);
       setTotalsByFriend({});
       setGrandTotals(emptyTotals());
+      setReactionsByEntry({});
     } finally {
       setLoading(false);
     }
   }
 
-  // NEW: load goals for selected friends for the week containing dateStr
   async function loadSelectedFriendsGoals(friendIds: string[], weekStartYmd: string) {
     try {
       const { data: goals, error: gErr } = await supabase
@@ -367,8 +399,50 @@ export default function FriendsPage() {
 
       setGoalsByFriend(next);
     } catch {
-      // don't break the page if this fails
       setGoalsByFriend({});
+    }
+  }
+
+  async function loadReactions(entryIds: string[]) {
+    try {
+      const { data: rx, error: rxErr } = await supabase
+        .from("entry_reactions")
+        .select("id, entry_id, user_id, emoji, created_at")
+        .in("entry_id", entryIds)
+        .order("created_at", { ascending: true });
+
+      if (rxErr) throw rxErr;
+
+      const rowsRx = (rx ?? []) as any[];
+      if (rowsRx.length === 0) {
+        setReactionsByEntry({});
+        return;
+      }
+
+      const userIds = Array.from(new Set(rowsRx.map((r) => r.user_id).filter(Boolean)));
+      const { data: profs, error: pErr } = await supabase.from("profiles").select("user_id, display_name").in("user_id", userIds);
+
+      if (pErr) throw pErr;
+
+      const nameById = new Map<string, string>((profs ?? []).map((p: any) => [p.user_id, (p.display_name || "(no name)") as string]));
+
+      const grouped: Record<string, ReactionRow[]> = {};
+      for (const r of rowsRx) {
+        const entry_id = r.entry_id as string;
+        if (!grouped[entry_id]) grouped[entry_id] = [];
+        grouped[entry_id].push({
+          id: r.id,
+          entry_id,
+          user_id: r.user_id,
+          emoji: r.emoji,
+          created_at: r.created_at,
+          display_name: nameById.get(r.user_id) ?? "(unknown)",
+        });
+      }
+
+      setReactionsByEntry(grouped);
+    } catch {
+      setReactionsByEntry({});
     }
   }
 
@@ -384,6 +458,78 @@ export default function FriendsPage() {
     setSelectedFriendIds([]);
   }
 
+  function countByEmoji(list: ReactionRow[]): Record<string, number> {
+    const m: Record<string, number> = {};
+    for (const r of list) m[r.emoji] = (m[r.emoji] ?? 0) + 1;
+    return m;
+  }
+
+  function hasMyReaction(list: ReactionRow[], emoji: string): boolean {
+    if (!meId) return false;
+    return list.some((r) => r.user_id === meId && r.emoji === emoji);
+  }
+
+  async function toggleReaction(entryId: string, emoji: string) {
+    if (!meId) return;
+
+    const current = reactionsByEntry[entryId] ?? [];
+    const already = current.find((r) => r.user_id === meId && r.emoji === emoji);
+
+    // optimistic update
+    if (!already) {
+      const optimistic: ReactionRow = {
+        id: `temp-${Math.random().toString(16).slice(2)}`,
+        entry_id: entryId,
+        user_id: meId,
+        emoji,
+        created_at: new Date().toISOString(),
+        display_name: friends.find((f) => f.user_id === meId)?.display_name ?? "You",
+      };
+
+      setReactionsByEntry((prev) => ({ ...prev, [entryId]: [...(prev[entryId] ?? []), optimistic] }));
+
+      try {
+        const { data, error } = await supabase
+          .from("entry_reactions")
+          .insert({ entry_id: entryId, user_id: meId, emoji })
+          .select("id, entry_id, user_id, emoji, created_at")
+          .single();
+
+        if (error) throw error;
+
+        setReactionsByEntry((prev) => {
+          const next = (prev[entryId] ?? []).filter((r) => !r.id.startsWith("temp-"));
+          const real: ReactionRow = {
+            id: data!.id,
+            entry_id: data!.entry_id,
+            user_id: data!.user_id,
+            emoji: data!.emoji,
+            created_at: data!.created_at,
+            display_name: optimistic.display_name,
+          };
+          return { ...prev, [entryId]: [...next, real] };
+        });
+      } catch {
+        setReactionsByEntry((prev) => ({
+          ...prev,
+          [entryId]: (prev[entryId] ?? []).filter((r) => !(r.user_id === meId && r.emoji === emoji)),
+        }));
+      }
+    } else {
+      setReactionsByEntry((prev) => ({
+        ...prev,
+        [entryId]: (prev[entryId] ?? []).filter((r) => !(r.user_id === meId && r.emoji === emoji)),
+      }));
+
+      try {
+        const { error } = await supabase.from("entry_reactions").delete().match({ entry_id: entryId, user_id: meId, emoji });
+        if (error) throw error;
+      } catch {
+        setReactionsByEntry((prev) => ({ ...prev, [entryId]: [...(prev[entryId] ?? []), already] }));
+      }
+    }
+  }
+
   return (
     <main className={styles.page}>
       <Nav />
@@ -391,8 +537,9 @@ export default function FriendsPage() {
       <div className={styles.container}>
         <h1 className={styles.title}>Friends</h1>
 
-        <div className={styles.layout}>
-          {/* LEFT */}
+        {/* ✅ STACKED layout: selector on top, content below */}
+        <div className={styles.layoutStack}>
+          {/* TOP */}
           <div className={styles.card}>
             <div className={styles.cardHeader}>
               <b>People in your group</b>
@@ -429,7 +576,7 @@ export default function FriendsPage() {
             )}
           </div>
 
-          {/* RIGHT */}
+          {/* BOTTOM */}
           <div className={styles.card}>
             <div className={styles.topRow}>
               <div>
@@ -588,31 +735,65 @@ export default function FriendsPage() {
                     <tr>
                       <th className={styles.th}>Friend</th>
                       <th className={styles.th}>Meal</th>
-                      <th className={styles.th}>Item</th>
+                      <th className={`${styles.th} ${styles.itemTh}`}>Item</th>
                       <th className={`${styles.th} ${styles.thNum}`}>Calories</th>
                       <th className={`${styles.th} ${styles.thNum}`}>P</th>
                       <th className={`${styles.th} ${styles.thNum}`}>C</th>
                       <th className={`${styles.th} ${styles.thNum}`}>F</th>
                       <th className={`${styles.th} ${styles.thNum}`}>Grams</th>
+                      <th className={styles.th}>Reactions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r) => (
-                      <tr key={r.id} className={styles.tr}>
-                        <td className={styles.td}>{r.friend_name}</td>
-                        <td className={styles.td}>{r.meal}</td>
-                        <td className={styles.td}>{r.name}</td>
-                        <td className={`${styles.td} ${styles.tdNum}`}>{r.calories}</td>
-                        <td className={`${styles.td} ${styles.tdNum}`}>{r.protein_g}</td>
-                        <td className={`${styles.td} ${styles.tdNum}`}>{r.carbs_g}</td>
-                        <td className={`${styles.td} ${styles.tdNum}`}>{r.fat_g}</td>
-                        <td className={`${styles.td} ${styles.tdNum}`}>{r.grams ?? 0}</td>
-                      </tr>
-                    ))}
+                    {rows.map((r) => {
+                      const rx = reactionsByEntry[r.id] ?? [];
+                      const counts = countByEmoji(rx);
+
+                      return (
+                        <tr key={r.id} className={styles.tr}>
+                          <td className={styles.td}>{r.friend_name}</td>
+                          <td className={styles.td}>{r.meal}</td>
+                          <td className={`${styles.td} ${styles.itemTd}`}>{r.name}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{r.calories}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{r.protein_g}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{r.carbs_g}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{r.fat_g}</td>
+                          <td className={`${styles.td} ${styles.tdNum}`}>{r.grams ?? 0}</td>
+
+                          <td className={styles.td}>
+                            <div className={styles.reactionsCellCompact}>
+                              <div className={styles.reactionBar}>
+                                {QUICK_EMOJIS.map((e) => {
+                                  const c = counts[e] ?? 0;
+                                  const active = hasMyReaction(rx, e);
+
+                                  // Hover tooltip = names
+                                  const names = rx.filter((x) => x.emoji === e).map((x) => x.display_name);
+                                  const tooltip = names.length ? names.join(", ") : "";
+
+                                  return (
+                                    <button
+                                      key={e}
+                                      type="button"
+                                      className={`${styles.emojiBtn} ${active ? styles.emojiBtnActive : ""}`}
+                                      onClick={() => void toggleReaction(r.id, e)}
+                                      title={tooltip}
+                                    >
+                                      <span className={styles.emoji}>{e}</span>
+                                      {c > 0 ? <span className={styles.countBadge}>{c}</span> : null}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
 
                     {selectedFriendIds.length > 0 && rows.length === 0 ? (
                       <tr>
-                        <td className={styles.td} colSpan={8}>
+                        <td className={styles.td} colSpan={9}>
                           <span className={styles.muted}>No rows to display.</span>
                         </td>
                       </tr>
@@ -620,6 +801,7 @@ export default function FriendsPage() {
                   </tbody>
                 </table>
               </div>
+
             </div>
 
             {loading ? <p className={styles.muted}>Loading…</p> : null}
