@@ -6,8 +6,8 @@ export async function middleware(request: NextRequest) {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
@@ -15,25 +15,27 @@ export async function middleware(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
-        // sync request cookies
+        // update request cookies
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
 
-        // attach cookies to response
+        // create a fresh response + attach cookies
         response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, options);
         });
-      }
-    }
+      },
+    },
   });
 
-  // refresh / read session
-  const { data } = await supabase.auth.getClaims();
-  const user = data?.claims;
+  // IMPORTANT: this refreshes session cookies if needed
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
 
   const isPublic =
+    path === "/" ||
     path.startsWith("/login") ||
     path.startsWith("/_next") ||
     path === "/favicon.ico";
@@ -48,5 +50,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
