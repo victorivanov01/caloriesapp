@@ -1,4 +1,4 @@
-.page {
+.page { 
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   color: rgba(231, 234, 240, 0.95);
 
@@ -93,6 +93,40 @@
   box-shadow: 0 0 0 4px var(--focusRing);
 }
 
+.switch {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  user-select: none;
+  cursor: pointer;
+  color: var(--muted2);
+  font-size: 13px;
+}
+.switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: rgb(99, 102, 241);
+}
+
+.weekNav {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.weekTotals {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-left: auto;
+
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+}
+
 .section {
   margin-top: 16px;
 }
@@ -185,7 +219,8 @@
 
 .button,
 .primaryButton,
-.dangerButton {
+.dangerButton,
+.linkButton {
   cursor: pointer;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -197,18 +232,21 @@
 }
 .button:hover,
 .primaryButton:hover,
-.dangerButton:hover {
+.dangerButton:hover,
+.linkButton:hover {
   background: rgba(255, 255, 255, 0.10);
   border-color: var(--border2);
 }
 .button:active,
 .primaryButton:active,
-.dangerButton:active {
+.dangerButton:active,
+.linkButton:active {
   transform: translateY(1px);
 }
 .button:disabled,
 .primaryButton:disabled,
-.dangerButton:disabled {
+.dangerButton:disabled,
+.linkButton:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -242,6 +280,12 @@
   background: linear-gradient(180deg, rgba(239, 68, 68, 0.38), rgba(239, 68, 68, 0.18));
 }
 
+.linkButton {
+  padding: 6px 10px;
+  height: 34px;
+  background: transparent;
+}
+
 .tableWrap {
   overflow-x: auto;
   border-radius: 16px;
@@ -252,29 +296,56 @@
 .table {
   width: 100%;
   border-collapse: collapse;
+
+  /* ✅ keeps the table from resizing when inputs appear */
   table-layout: fixed;
 }
 
+/* ✅ stable column widths so Edit mode can't change layout */
 .table th:nth-child(1),
-.table td:nth-child(1) { width: 120px; }
+.table td:nth-child(1) {
+  width: 120px; /* Meal */
+}
+
+.table th:nth-child(2),
+.table td:nth-child(2) {
+  width: auto; /* Item (flex) */
+}
+
 .table th:nth-child(3),
-.table td:nth-child(3) { width: 70px; }
+.table td:nth-child(3) {
+  width: 70px; /* g */
+}
+
 .table th:nth-child(4),
-.table td:nth-child(4) { width: 80px; }
+.table td:nth-child(4) {
+  width: 80px; /* kcal */
+}
+
 .table th:nth-child(5),
 .table td:nth-child(5),
 .table th:nth-child(6),
 .table td:nth-child(6),
 .table th:nth-child(7),
-.table td:nth-child(7) { width: 60px; }
-.table th:nth-child(8),
-.table td:nth-child(8) { width: 170px; }
+.table td:nth-child(7) {
+  width: 60px; /* P/C/F */
+}
 
+.table th:nth-child(8),
+.table td:nth-child(8) {
+  width: 170px; /* actions */
+}
+
+/* Item cell: allow wrapping without changing column width */
 .table td:nth-child(2) {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-.table td:nth-child(8) { white-space: nowrap; }
+
+/* Actions: never wrap into multiple lines */
+.table td:nth-child(8) {
+  white-space: nowrap;
+}
 
 .th {
   text-align: left;
@@ -290,7 +361,9 @@
   backdrop-filter: blur(10px);
 }
 
-.thNum { text-align: right; }
+.thNum {
+  text-align: right;
+}
 
 .td {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
@@ -304,11 +377,24 @@
   font-variant-numeric: tabular-nums;
 }
 
+.tdSmall {
+  white-space: nowrap;
+  font-size: 12px;
+  color: rgba(231, 234, 240, 0.70);
+}
+
 .tr:hover {
   background: rgba(255, 255, 255, 0.05);
 }
 
-.muted { color: var(--muted); }
+.trActive {
+  outline: 2px solid rgba(99, 102, 241, 0.35);
+  outline-offset: -2px;
+}
+
+.muted {
+  color: var(--muted);
+}
 
 .mutedSmall {
   color: var(--muted);
@@ -324,13 +410,140 @@
   color: rgba(255, 220, 220, 0.95);
 }
 
-/* inputs/selects inside table fit */
+/* Hide number input spinners (Chrome, Edge, Safari) */
+.numInput::-webkit-outer-spin-button,
+.numInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* Hide number input spinners (Firefox) */
+.numInput[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* ===== Mobile adjustments ===== */
+
+@media (max-width: 768px) {
+  .container {
+    margin: 16px auto;
+    padding: 12px;
+  }
+
+  .headerRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .totalsInline {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .controlsRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .weekTotals {
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .formRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .numInput,
+  .select,
+  .textInput {
+    width: 100%;
+  }
+
+  .button,
+  .primaryButton {
+    width: 100%;
+  }
+
+  /* ✅ MOBILE FIX: prevent one-letter-per-line in "Item" */
+  .table {
+    min-width: 780px; /* a bit wider = more room for Item */
+  }
+
+  /* ✅ MOBILE: reduce other fixed columns so Item becomes wider */
+  .table th:nth-child(1),
+  .table td:nth-child(1) {
+    width: 90px; /* Meal */
+  }
+
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    width: 55px; /* g */
+  }
+
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    width: 65px; /* kcal */
+  }
+
+  .table th:nth-child(5),
+  .table td:nth-child(5),
+  .table th:nth-child(6),
+  .table td:nth-child(6),
+  .table th:nth-child(7),
+  .table td:nth-child(7) {
+    width: 50px; /* P/C/F */
+  }
+
+  .table th:nth-child(8),
+  .table td:nth-child(8) {
+    width: 140px; /* actions */
+  }
+
+  /* ✅ MOBILE: show more of Item (2–3 lines, no ellipsis) */
+.table td:nth-child(2),
+.table th:nth-child(2) {
+  white-space: normal;
+}
+
+.table td:nth-child(2) {
+  overflow: visible;
+  text-overflow: clip;
+
+  /* wrap nicely */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+
+}
+
+}
+
+.td button + button {
+  margin-left: 8px;
+}
+
+/* ✅ inputs/selects inside table MUST fit the cell (no column push) */
 .td .numInput,
 .td .textInput,
 .td .select {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+
+.td .numInput {
+  height: 34px;
+  padding: 6px 8px;
+}
+
+.td .textInput {
+  height: 34px;
+  padding: 6px 8px;
 }
 
 .editActions {
@@ -340,22 +553,8 @@
   flex-wrap: nowrap;
 }
 
-/* ✅ Entries table action buttons (RESTORE "before" look) */
-.tableActions {
-  display: inline-flex;
-  gap: 10px;
-  align-items: center;
-  white-space: nowrap;
-}
-
-/* Make BOTH buttons compact + same size ONLY inside the table */
-.tableActions .button,
-.tableActions .dangerButton {
-  height: 34px;
-  padding: 6px 10px;
-}
-
 /* ===== Goals progress (CIRCULAR RINGS) ===== */
+
 .progressCard {
   margin-top: 10px;
   margin-bottom: 14px;
@@ -387,6 +586,7 @@
   justify-items: center;
 }
 
+/* ✅ ONLY CHANGE is here: remove seam/edge popping */
 .ring {
   --p: 0;
   --ringColor: rgba(16, 185, 129, 0.92);
@@ -450,216 +650,20 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ===== Quick Copy UI (shared, used inside modal) ===== */
-.quickCopyTop {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 12px;
-  align-items: center;
-}
-
-.chipsRow {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.chipsSpacer { flex: 1; }
-
-.chip {
-  cursor: pointer;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(231, 234, 240, 0.92);
-  padding: 7px 10px;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: -0.01em;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease, opacity 0.15s ease;
-}
-.chip:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: var(--border2);
-}
-.chip:active { transform: translateY(1px); }
-.chip:disabled { opacity: 0.55; cursor: not-allowed; }
-
-.chipActive {
-  border-color: rgba(99, 102, 241, 0.65);
-  background: linear-gradient(180deg, rgba(99, 102, 241, 0.35), rgba(99, 102, 241, 0.14));
-}
-
-.copyList {
-  display: grid;
-  gap: 8px;
-}
-
-.copyRowItem {
-  width: 100%;
-  text-align: left;
-  display: grid;
-  grid-template-columns: 22px 86px 1fr;
-  gap: 10px;
-  align-items: center;
-
-  padding: 10px 12px;
-  border-radius: 16px;
-
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(255, 255, 255, 0.04);
-
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease, opacity 0.15s ease;
-}
-.copyRowItem:hover {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.14);
-}
-.copyRowItem:active { transform: translateY(1px); }
-.copyRowItem:disabled { opacity: 0.55; cursor: not-allowed; }
-
-.copyRowItemActive {
-  border-color: rgba(99, 102, 241, 0.55);
-  background: linear-gradient(180deg, rgba(99, 102, 241, 0.20), rgba(255, 255, 255, 0.03));
-}
-
-.checkbox {
-  width: 18px;
-  height: 18px;
-  accent-color: rgb(99, 102, 241);
-  cursor: pointer;
-}
-
-.mealBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  background: rgba(10, 14, 26, 0.55);
-
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: rgba(231, 234, 240, 0.92);
-
-  white-space: nowrap;
-}
-
-.copyMain {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.copyName {
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: rgba(231, 234, 240, 0.95);
-  overflow-wrap: anywhere;
-}
-
-.copyMeta {
-  font-size: 12px;
-  color: rgba(231, 234, 240, 0.70);
-  font-variant-numeric: tabular-nums;
-}
-
-.copyFooter {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.copyInfo {
-  color: rgba(231, 234, 240, 0.75);
-}
-
-/* ===== MODAL (Quick Copy) ===== */
-.modalOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-
-  background: rgba(0, 0, 0, 0.55);
-  display: grid;
-  place-items: center;
-
-  padding: 16px;
-}
-
-.modal {
-  width: min(920px, 100%);
-  max-height: min(82vh, 820px);
-  overflow: hidden;
-
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(10, 14, 26, 0.92);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
-
-  display: grid;
-  grid-template-rows: auto 1fr;
-}
-
-.modalHeader {
-  padding: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-
-  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
-}
-
-.modalTitle {
-  font-size: 16px;
-  font-weight: 850;
-  letter-spacing: -0.01em;
-}
-
-.modalBody {
-  padding: 12px;
-  display: grid;
-  gap: 10px;
-  overflow: hidden;
-}
-
-.modalList {
-  overflow: auto;
-  padding-right: 2px;
-  border-radius: 16px;
-}
-
 @media (max-width: 768px) {
-  .container { margin: 16px auto; padding: 12px; }
-  .headerRow { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .totalsInline { width: 100%; justify-content: space-between; }
-  .controlsRow { flex-direction: column; align-items: stretch; gap: 12px; }
-  .formRow { flex-direction: column; align-items: stretch; }
-  .numInput, .select, .textInput { width: 100%; }
-  .button, .primaryButton { width: 100%; }
+  .goalGrid {
+    justify-content: center;
+  }
 
-  .table { min-width: 780px; }
-  .quickCopyTop { grid-template-columns: 1fr; }
+  .ring {
+    width: 132px;
+    height: 132px;
+  }
+
+  .ringInner {
+    width: 104px;
+    height: 104px;
+  }
 }
 
-/* hide spinners */
-.numInput::-webkit-outer-spin-button,
-.numInput::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  appearance: none;
-  margin: 0;
-}
-.numInput[type="number"] {
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
+
