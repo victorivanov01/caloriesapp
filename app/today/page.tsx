@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Nav from "@/components/Nav";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import styles from "./Today.module.css";
@@ -88,40 +88,29 @@ function pctClamped(value: number, goal: number | null): number {
   return Math.max(0, Math.min(100, pctRaw(value, goal)));
 }
 
-/**
- * Calories:
- * - BULK: low is bad (red) -> orange -> yellow -> green near goal; >100 stays green
- * - CUT: low is good (green) -> yellow -> orange -> red at >=100 (over limit)
- */
 function ringColorCalories(percentRaw: number, mode: "bulk" | "cut"): string {
   const p = Number.isFinite(percentRaw) ? percentRaw : 0;
 
   if (mode === "bulk") {
-    if (p < 50) return "rgba(239, 68, 68, 0.92)"; // red
-    if (p < 75) return "rgba(245, 158, 11, 0.92)"; // orange
-    if (p < 90) return "rgba(234, 179, 8, 0.92)"; // yellow
-    return "rgba(16, 185, 129, 0.92)"; // green (>=90, including >100)
+    if (p < 50) return "rgba(239, 68, 68, 0.92)";
+    if (p < 75) return "rgba(245, 158, 11, 0.92)";
+    if (p < 90) return "rgba(234, 179, 8, 0.92)";
+    return "rgba(16, 185, 129, 0.92)";
   }
 
-  // cut
-  if (p >= 100) return "rgba(239, 68, 68, 0.92)"; // red (over)
-  if (p >= 90) return "rgba(245, 158, 11, 0.92)"; // orange
-  if (p >= 75) return "rgba(234, 179, 8, 0.92)"; // yellow
-  return "rgba(16, 185, 129, 0.92)"; // green
+  if (p >= 100) return "rgba(239, 68, 68, 0.92)";
+  if (p >= 90) return "rgba(245, 158, 11, 0.92)";
+  if (p >= 75) return "rgba(234, 179, 8, 0.92)";
+  return "rgba(16, 185, 129, 0.92)";
 }
 
-/**
- * Protein (both modes):
- * low = red -> orange -> yellow -> green as it approaches goal
- * at 100% and above: still GREEN
- */
 function ringColorProtein(percentRaw: number): string {
   const p = Number.isFinite(percentRaw) ? percentRaw : 0;
 
-  if (p < 50) return "rgba(239, 68, 68, 0.92)"; // red
-  if (p < 75) return "rgba(245, 158, 11, 0.92)"; // orange
-  if (p < 90) return "rgba(234, 179, 8, 0.92)"; // yellow
-  return "rgba(16, 185, 129, 0.92)"; // green (>=90, including >100)
+  if (p < 50) return "rgba(239, 68, 68, 0.92)";
+  if (p < 75) return "rgba(245, 158, 11, 0.92)";
+  if (p < 90) return "rgba(234, 179, 8, 0.92)";
+  return "rgba(16, 185, 129, 0.92)";
 }
 
 type EditDraft = {
@@ -145,6 +134,8 @@ function toDraft(e: Entry): EditDraft {
     meal: (e.meal ?? "Snack") || "Snack",
   };
 }
+
+type MealFilter = "All" | "Breakfast" | "Lunch" | "Dinner" | "Snack";
 
 function TodayInner() {
   const supabase = useMemo(() => supabaseBrowser(), []);
@@ -179,6 +170,35 @@ function TodayInner() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // ===== Quick Copy (MODAL) =====
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
+  const [copyDateStr, setCopyDateStr] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return ymd(d);
+  });
+  const [copyEntries, setCopyEntries] = useState<Entry[]>([]);
+  const [copySelectedIds, setCopySelectedIds] = useState<Record<string, boolean>>({});
+  const [copyLoading, setCopyLoading] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [copySearch, setCopySearch] = useState("");
+  const [copyMealFilter, setCopyMealFilter] = useState<MealFilter>("All");
+  const [copyInfoMsg, setCopyInfoMsg] = useState<string | null>(null);
+
+  const selectedCount = useMemo(
+    () => Object.values(copySelectedIds).filter(Boolean).length,
+    [copySelectedIds]
+  );
+
+  const filteredCopyEntries = useMemo(() => {
+    const q = copySearch.trim().toLowerCase();
+    return copyEntries.filter((e) => {
+      if (copyMealFilter !== "All" && (e.meal ?? "") !== copyMealFilter) return false;
+      if (!q) return true;
+      return (e.name ?? "").toLowerCase().includes(q);
+    });
+  }, [copyEntries, copyMealFilter, copySearch]);
+
   // init date from /today?date=YYYY-MM-DD once
   useEffect(() => {
     if (didInitFromUrl.current) return;
@@ -190,6 +210,7 @@ function TodayInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  // Client auth gate (NO server middleware)
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
@@ -431,6 +452,161 @@ function TodayInner() {
     }
   }
 
+  // ===== Quick Copy =====
+  const copyLoadToken = useRef(0);
+
+  async function loadCopySource(day: string) {
+    if (!userId) return;
+
+    const token = ++copyLoadToken.current;
+    setCopyInfoMsg(null);
+    setCopyLoading(true);
+    setErrorMsg(null);
+
+    try {
+      const { data: srcLog, error: srcLogErr } = await supabase
+        .from("daily_logs")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("log_date", day)
+        .maybeSingle();
+
+      if (token !== copyLoadToken.current) return;
+      if (srcLogErr) throw srcLogErr;
+
+      const srcId = (srcLog?.id as string | undefined) ?? undefined;
+
+      if (!srcId) {
+        setCopyEntries([]);
+        setCopySelectedIds({});
+        setCopyInfoMsg(`No log found for ${day}.`);
+        return;
+      }
+
+      const { data: srcEntries, error: srcEntriesErr } = await supabase
+        .from("food_entries")
+        .select("id, name, calories, protein_g, carbs_g, fat_g, grams, meal, created_at")
+        .eq("daily_log_id", srcId)
+        .order("created_at", { ascending: true });
+
+      if (token !== copyLoadToken.current) return;
+      if (srcEntriesErr) throw srcEntriesErr;
+
+      const list = (srcEntries ?? []) as Entry[];
+      setCopyEntries(list);
+      setCopySelectedIds({});
+      if (list.length === 0) setCopyInfoMsg(`No entries found for ${day}.`);
+    } catch (e: any) {
+      if (token !== copyLoadToken.current) return;
+      setCopyEntries([]);
+      setCopySelectedIds({});
+      setErrorMsg(e?.message ?? "Error");
+    } finally {
+      if (token !== copyLoadToken.current) return;
+      setCopyLoading(false);
+    }
+  }
+
+  function openCopyModal() {
+    setCopyModalOpen(true);
+  }
+
+  function closeCopyModal() {
+    setCopyModalOpen(false);
+  }
+
+  // Prevent background scroll while modal is open + ESC close
+  useEffect(() => {
+    if (!copyModalOpen) return;
+
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    const prevPaddingRight = body.style.paddingRight;
+
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeCopyModal();
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      body.style.overflow = prevOverflow;
+      body.style.paddingRight = prevPaddingRight;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [copyModalOpen]);
+
+  // Debounced load when modal open or date changes
+  useEffect(() => {
+    if (!userId) return;
+    if (!copyModalOpen) return;
+
+    const handle = window.setTimeout(() => {
+      void loadCopySource(copyDateStr);
+    }, 200);
+
+    return () => window.clearTimeout(handle);
+  }, [userId, copyModalOpen, copyDateStr]);
+
+  function toggleCopySelected(id: string) {
+    setCopySelectedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function selectAllVisibleCopy() {
+    const next: Record<string, boolean> = { ...copySelectedIds };
+    for (const e of filteredCopyEntries) next[e.id] = true;
+    setCopySelectedIds(next);
+  }
+
+  function clearAllCopy() {
+    setCopySelectedIds({});
+  }
+
+  async function copySelectedToToday() {
+    if (!dailyLogId) return;
+
+    const selected = copyEntries.filter((e) => !!copySelectedIds[e.id]);
+    if (selected.length === 0) {
+      setErrorMsg("Select at least one entry to copy.");
+      return;
+    }
+
+    setErrorMsg(null);
+    setCopyInfoMsg(null);
+    setCopying(true);
+
+    try {
+      const rows = selected.map((e) => ({
+        daily_log_id: dailyLogId,
+        user_id: userId!,
+        name: e.name,
+        calories: e.calories ?? 0,
+        protein_g: e.protein_g ?? 0,
+        carbs_g: e.carbs_g ?? 0,
+        fat_g: e.fat_g ?? 0,
+        grams: e.grams ?? null,
+        meal: e.meal ?? "Snack",
+      }));
+
+      const { error: insErr } = await supabase.from("food_entries").insert(rows);
+      if (insErr) throw insErr;
+
+      await ensureLogAndLoadDay(dateStr);
+      setCopySelectedIds({});
+      setCopyInfoMsg(`Copied ${rows.length} item${rows.length === 1 ? "" : "s"} to ${dateStr}.`);
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? "Error");
+    } finally {
+      setCopying(false);
+    }
+  }
+
   const mode = weeklyGoal?.mode ?? "cut";
   const calPct = pctRaw(totals.calories, weeklyGoal?.calorie_goal ?? null);
   const protPct = pctRaw(totals.protein, weeklyGoal?.protein_goal_g ?? null);
@@ -539,10 +715,19 @@ function TodayInner() {
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>Quick add</h2>
+
+            <button className={styles.button} onClick={openCopyModal} type="button" disabled={loading || !dailyLogId}>
+              Quick copy
+            </button>
           </div>
 
           <div className={styles.card}>
-            <input className={styles.textInput} value={name} onChange={(e) => setName(e.target.value)} placeholder="Food name (fast manual entry)" />
+            <input
+              className={styles.textInput}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Food name (fast manual entry)"
+            />
 
             <div className={styles.formRow}>
               <label className={styles.field}>
@@ -625,10 +810,10 @@ function TodayInner() {
                           <td className={`${styles.td} ${styles.tdNum}`}>{e.carbs_g ?? 0}</td>
                           <td className={`${styles.td} ${styles.tdNum}`}>{e.fat_g ?? 0}</td>
                           <td className={styles.td}>
-                            <button className={styles.button} onClick={() => startEdit(e)} disabled={loading}>
+                            <button className={styles.button} onClick={() => startEdit(e)} disabled={loading} type="button">
                               Edit
                             </button>
-                            <button className={styles.dangerButton} onClick={() => deleteEntry(e.id)} disabled={loading}>
+                            <button className={styles.dangerButton} onClick={() => deleteEntry(e.id)} disabled={loading} type="button">
                               delete
                             </button>
                           </td>
@@ -713,11 +898,11 @@ function TodayInner() {
 
                         <td className={styles.td}>
                           <div className={styles.editActions}>
-                            <button className={styles.primaryButton} onClick={() => saveEdit(e.id)} disabled={loading}>
+                            <button className={styles.primaryButton} onClick={() => saveEdit(e.id)} disabled={loading} type="button">
                               save
                             </button>
 
-                            <button className={styles.button} onClick={cancelEdit} disabled={loading}>
+                            <button className={styles.button} onClick={cancelEdit} disabled={loading} type="button">
                               cancel
                             </button>
                           </div>
@@ -733,6 +918,151 @@ function TodayInner() {
           {errorMsg ? <div className={styles.error}>{errorMsg}</div> : null}
         </div>
       </div>
+
+      {/* ===== Quick Copy Modal ===== */}
+      {copyModalOpen ? (
+        <div
+          className={styles.modalOverlay}
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeCopyModal();
+          }}
+        >
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div>
+                <div className={styles.modalTitle}>Quick copy</div>
+                <div className={styles.mutedSmall}>
+                  Source: <b>{copyDateStr}</b>
+                  {selectedCount ? (
+                    <>
+                      {" "}
+                      · Selected: <b>{selectedCount}</b>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              <button className={styles.button} onClick={closeCopyModal} type="button">
+                Close
+              </button>
+            </div>
+
+            <div className={styles.modalBody}>
+              <div className={styles.quickCopyTop}>
+                <label className={styles.dateLabel}>
+                  Source date <DatePicker value={copyDateStr} onChange={setCopyDateStr} />
+                </label>
+
+                <input
+                  className={styles.textInput}
+                  value={copySearch}
+                  onChange={(e) => setCopySearch(e.target.value)}
+                  placeholder="Search food…"
+                  disabled={copying}
+                />
+              </div>
+
+              <div className={styles.chipsRow}>
+                {(["All", "Breakfast", "Lunch", "Dinner", "Snack"] as MealFilter[]).map((m) => (
+                  <button
+                    key={m}
+                    className={`${styles.chip} ${copyMealFilter === m ? styles.chipActive : ""}`}
+                    onClick={() => setCopyMealFilter(m)}
+                    disabled={copying}
+                    type="button"
+                  >
+                    {m}
+                  </button>
+                ))}
+
+                <div className={styles.chipsSpacer} />
+
+                <button
+                  className={styles.button}
+                  onClick={selectAllVisibleCopy}
+                  disabled={filteredCopyEntries.length === 0 || copyLoading || copying}
+                  type="button"
+                >
+                  Select visible
+                </button>
+
+                <button className={styles.button} onClick={clearAllCopy} disabled={selectedCount === 0 || copyLoading || copying} type="button">
+                  Clear
+                </button>
+              </div>
+
+              <div className={styles.modalList}>
+                {copyLoading ? <div className={styles.mutedSmall}>Loading…</div> : null}
+
+                {filteredCopyEntries.length === 0 ? (
+                  <div className={styles.mutedSmall}>
+                    {copyEntries.length === 0 ? "No entries for this date (or no log yet)." : "No matches for your filters."}
+                  </div>
+                ) : (
+                  <div className={styles.copyList}>
+                    {filteredCopyEntries.map((e) => {
+                      const checked = !!copySelectedIds[e.id];
+                      const kcal = e.calories ?? 0;
+                      const p = e.protein_g ?? 0;
+                      const c = e.carbs_g ?? 0;
+                      const f = e.fat_g ?? 0;
+                      const g = e.grams ?? null;
+
+                      return (
+                        <button
+                          key={e.id}
+                          type="button"
+                          className={`${styles.copyRowItem} ${checked ? styles.copyRowItemActive : ""}`}
+                          onClick={() => toggleCopySelected(e.id)}
+                          disabled={copyLoading || copying}
+                        >
+                          <input
+                            className={styles.checkbox}
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleCopySelected(e.id)}
+                            onClick={(ev) => ev.stopPropagation()}
+                            disabled={copyLoading || copying}
+                            aria-label={`Select ${e.name}`}
+                          />
+
+                          <span className={styles.mealBadge}>{e.meal ?? "Snack"}</span>
+
+                          <span className={styles.copyMain}>
+                            <span className={styles.copyName}>{e.name}</span>
+                            <span className={styles.copyMeta}>
+                              {kcal} kcal · P {p} · C {c} · F {f}
+                              {g != null ? ` · ${g}g` : ""}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.copyFooter}>
+                <div className={styles.mutedSmall}>
+                  Selected: <b>{selectedCount}</b>
+                  {copyInfoMsg ? <span className={styles.copyInfo}> · {copyInfoMsg}</span> : null}
+                </div>
+
+                <button
+                  className={styles.primaryButton}
+                  onClick={copySelectedToToday}
+                  disabled={selectedCount === 0 || copyLoading || copying || loading || !dailyLogId}
+                  type="button"
+                >
+                  {copying ? "Copying…" : `Copy selected${selectedCount ? ` (${selectedCount})` : ""}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

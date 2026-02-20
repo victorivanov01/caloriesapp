@@ -667,3 +667,208 @@
 }
 
 
+/* ===== Quick Copy UI (Modal) ===== */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+
+  padding: 16px;
+}
+
+.modal {
+  width: min(920px, 100%);
+  max-height: min(82vh, 820px);
+  overflow: hidden;
+
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 14, 26, 0.92);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.modalHeader {
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+}
+
+.modalBody {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.modalList {
+  overflow: auto;
+  padding-right: 2px;
+  border-radius: 16px;
+}
+
+.quickCopyTop {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.chipsRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.chipsSpacer {
+  flex: 1;
+}
+
+.chip {
+  cursor: pointer;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(231, 234, 240, 0.92);
+  padding: 7px 10px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease, opacity 0.15s ease;
+}
+.chip:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--border2);
+}
+.chip:active {
+  transform: translateY(1px);
+}
+.chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chipActive {
+  border-color: rgba(99, 102, 241, 0.65);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.35), rgba(99, 102, 241, 0.14));
+}
+
+.copyList {
+  display: grid;
+  gap: 8px;
+}
+
+.copyRowItem {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  grid-template-columns: 22px 86px 1fr;
+  gap: 10px;
+  align-items: center;
+
+  padding: 10px 12px;
+  border-radius: 16px;
+
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.08s ease, opacity 0.15s ease;
+}
+.copyRowItem:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.copyRowItem:active {
+  transform: translateY(1px);
+}
+.copyRowItem:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.copyRowItemActive {
+  border-color: rgba(99, 102, 241, 0.55);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.20), rgba(255, 255, 255, 0.03));
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: rgb(99, 102, 241);
+  cursor: pointer;
+}
+
+.mealBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(10, 14, 26, 0.55);
+
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: rgba(231, 234, 240, 0.92);
+
+  white-space: nowrap;
+}
+
+.copyMain {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.copyName {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: rgba(231, 234, 240, 0.95);
+  overflow-wrap: anywhere;
+}
+
+.copyMeta {
+  font-size: 12px;
+  color: rgba(231, 234, 240, 0.70);
+  font-variant-numeric: tabular-nums;
+}
+
+.copyFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.copyInfo {
+  color: rgba(231, 234, 240, 0.75);
+}
+
+@media (max-width: 768px) {
+  .quickCopyTop {
+    grid-template-columns: 1fr;
+  }
+}
