@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { CSSProperties, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Nav from "@/components/Nav";
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import styles from "./Today.module.css";
@@ -19,8 +19,6 @@ type Entry = {
   grams: number | null;
   meal: string | null;
   created_at: string;
-  // joined from daily_logs (optional)
-  log_date?: string | null;
 };
 
 type Totals = {
@@ -112,24 +110,18 @@ function ringColorCalories(percentRaw: number, mode: "bulk" | "cut"): string {
   const p = Number.isFinite(percentRaw) ? percentRaw : 0;
 
   if (mode === "bulk") {
-    if (p < 50) return "rgba(239, 68, 68, 0.92)"; // red
-    if (p < 75) return "rgba(245, 158, 11, 0.92)"; // orange
-    if (p < 90) return "rgba(234, 179, 8, 0.92)"; // yellow
-    return "rgba(16, 185, 129, 0.92)"; // green
+    if (p < 50) return "rgba(239, 68, 68, 0.92)";
+    if (p < 75) return "rgba(245, 158, 11, 0.92)";
+    if (p < 90) return "rgba(234, 179, 8, 0.92)";
+    return "rgba(16, 185, 129, 0.92)";
   }
 
-  // cut
-  if (p >= 100) return "rgba(239, 68, 68, 0.92)"; // red (over)
-  if (p >= 90) return "rgba(245, 158, 11, 0.92)"; // orange
-  if (p >= 75) return "rgba(234, 179, 8, 0.92)"; // yellow
-  return "rgba(16, 185, 129, 0.92)"; // green
+  if (p >= 100) return "rgba(239, 68, 68, 0.92)";
+  if (p >= 90) return "rgba(245, 158, 11, 0.92)";
+  if (p >= 75) return "rgba(234, 179, 8, 0.92)";
+  return "rgba(16, 185, 129, 0.92)";
 }
 
-/**
- * Protein (both modes):
- * low = red -> orange -> yellow -> green as it approaches goal
- * at 100% and above: still GREEN
- */
 function ringColorProtein(percentRaw: number): string {
   const p = Number.isFinite(percentRaw) ? percentRaw : 0;
 
@@ -151,41 +143,10 @@ function toDraft(e: Entry): EditDraft {
   };
 }
 
-function normalizeName(name: string): string {
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function labelRange(range: CopyRange): string {
-  if (range === "yesterday") return "Yesterday";
-  if (range === "week") return "Past week";
+function rangeLabel(r: CopyRange): string {
+  if (r === "yesterday") return "Yesterday";
+  if (r === "week") return "Past week";
   return "Past month";
-}
-
-function computeRangeDates(range: CopyRange) {
-  // We include "today - 1" back to N days.
-  // yesterday: exactly yesterday
-  // week: last 7 days (yesterday back 6 more)
-  // month: last 30 days (yesterday back 29 more)
-  const end = new Date();
-  end.setDate(end.getDate() - 1);
-
-  const start = new Date(end);
-  if (range === "yesterday") {
-    // same day
-  } else if (range === "week") {
-    start.setDate(start.getDate() - 6);
-  } else {
-    start.setDate(start.getDate() - 29);
-  }
-
-  return { startStr: ymd(start), endStr: ymd(end) };
-}
-
-function compactDays(days: string[]): string {
-  if (days.length === 0) return "-";
-  const sorted = [...days].sort();
-  if (sorted.length <= 3) return sorted.join(", ");
-  return `${sorted.slice(0, 3).join(", ")} +${sorted.length - 3}`;
 }
 
 function TodayInner() {
@@ -221,29 +182,57 @@ function TodayInner() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // ===== Quick Copy (Modal) =====
+  // ===== Quick Copy (MODAL) =====
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [copyRange, setCopyRange] = useState<CopyRange>("yesterday");
   const [copyEntries, setCopyEntries] = useState<Entry[]>([]);
-  const [copySelectedGroups, setCopySelectedGroups] = useState<Record<string, boolean>>({});
+  const [copySelectedIds, setCopySelectedIds] = useState<Record<string, boolean>>({});
   const [copyLoading, setCopyLoading] = useState(false);
   const [copying, setCopying] = useState(false);
   const [copySearch, setCopySearch] = useState("");
   const [copyMealFilter, setCopyMealFilter] = useState<MealFilter>("All");
   const [copyInfoMsg, setCopyInfoMsg] = useState<string | null>(null);
 
+  const selectedCount = useMemo(() => Object.values(copySelectedIds).filter(Boolean).length, [copySelectedIds]);
+
+  const filteredCopyEntries = useMemo(() => {
+    const q = copySearch.trim().toLowerCase();
+    return copyEntries.filter((e) => {
+      if (copyMealFilter !== "All" && (e.meal ?? "") !== copyMealFilter) return false;
+      if (!q) return true;
+      return (e.name ?? "").toLowerCase().includes(q);
+    });
+  }, [copyEntries, copyMealFilter, copySearch]);
+
+  const groupedCopy = useMemo(() => {
+    const map = new Map<string, Entry[]>();
+
+    for (const e of filteredCopyEntries) {
+      const day = e.created_at ? e.created_at.slice(0, 10) : "Unknown";
+      const arr = map.get(day) ?? [];
+      arr.push(e);
+      map.set(day, arr);
+    }
+
+    const days = Array.from(map.keys()).sort((a, b) => (a < b ? 1 : -1)); // newest first
+    return days.map((day) => ({ day, entries: map.get(day)! }));
+  }, [filteredCopyEntries]);
+
+  const copySourceText = useMemo(() => {
+    // purely UI label (top left)
+    return rangeLabel(copyRange);
+  }, [copyRange]);
+
   // init date from /today?date=YYYY-MM-DD once
   useEffect(() => {
     if (didInitFromUrl.current) return;
     const d = (searchParams.get("date") ?? "").trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-      setDateStr(d);
-    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) setDateStr(d);
     didInitFromUrl.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // auth (client)
+  // client-only auth check
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) {
@@ -365,7 +354,6 @@ function TodayInner() {
       const w = parseWeightKg(weightKg);
       const { error } = await supabase.from("daily_logs").update({ weight_kg: w }).eq("id", dailyLogId);
       if (error) throw error;
-
       setWeightKg(w != null ? String(w) : "");
     } catch (e: any) {
       setErrorMsg(e?.message ?? "Error");
@@ -485,87 +473,7 @@ function TodayInner() {
     }
   }
 
-  // ===== Quick Copy: load entries for the selected range =====
-  const copyLoadToken = useRef(0);
-
-  async function loadCopyRange(range: CopyRange) {
-    if (!userId) return;
-
-    const token = ++copyLoadToken.current;
-
-    setCopyInfoMsg(null);
-    setCopyLoading(true);
-    setErrorMsg(null);
-
-    try {
-      const { startStr, endStr } = computeRangeDates(range);
-
-      // 1) find daily_logs in date range
-      const { data: logs, error: logsErr } = await supabase
-        .from("daily_logs")
-        .select("id, log_date")
-        .eq("user_id", userId)
-        .gte("log_date", startStr)
-        .lte("log_date", endStr)
-        .order("log_date", { ascending: false });
-
-      if (token !== copyLoadToken.current) return;
-      if (logsErr) throw logsErr;
-
-      const logRows = (logs ?? []) as { id: string; log_date: string }[];
-      const ids = logRows.map((l) => l.id);
-
-      if (ids.length === 0) {
-        setCopyEntries([]);
-        setCopySelectedGroups({});
-        setCopyInfoMsg(`No logs found in ${labelRange(range).toLowerCase()}.`);
-        return;
-      }
-
-      // map daily_log_id -> log_date for labeling
-      const logDateById = new Map<string, string>();
-      for (const l of logRows) logDateById.set(l.id, l.log_date);
-
-      // 2) load all food entries for those logs
-      const { data: ents, error: entsErr } = await supabase
-        .from("food_entries")
-        .select("id, name, calories, protein_g, carbs_g, fat_g, grams, meal, created_at, daily_log_id")
-        .in("daily_log_id", ids)
-        .order("created_at", { ascending: true });
-
-      if (token !== copyLoadToken.current) return;
-      if (entsErr) throw entsErr;
-
-      const listRaw = (ents ?? []) as (Entry & { daily_log_id: string })[];
-
-      // attach log_date for display/group info
-      const list: Entry[] = listRaw.map((e) => ({
-        id: e.id,
-        name: e.name,
-        calories: e.calories ?? 0,
-        protein_g: e.protein_g ?? 0,
-        carbs_g: e.carbs_g ?? 0,
-        fat_g: e.fat_g ?? 0,
-        grams: e.grams ?? null,
-        meal: e.meal ?? "Snack",
-        created_at: e.created_at,
-        log_date: logDateById.get((e as any).daily_log_id) ?? null,
-      }));
-
-      setCopyEntries(list);
-      setCopySelectedGroups({});
-      if (list.length === 0) setCopyInfoMsg(`No entries found in ${labelRange(range).toLowerCase()}.`);
-    } catch (e: any) {
-      if (token !== copyLoadToken.current) return;
-      setCopyEntries([]);
-      setCopySelectedGroups({});
-      setErrorMsg(e?.message ?? "Error");
-    } finally {
-      if (token !== copyLoadToken.current) return;
-      setCopyLoading(false);
-    }
-  }
-
+  // ===== Quick Copy modal behavior =====
   function openCopyModal() {
     setCopyModalOpen(true);
   }
@@ -585,9 +493,7 @@ function TodayInner() {
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
 
     body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) {
-      body.style.paddingRight = `${scrollbarWidth}px`;
-    }
+    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeCopyModal();
@@ -601,6 +507,72 @@ function TodayInner() {
     };
   }, [copyModalOpen]);
 
+  const copyLoadToken = useRef(0);
+
+  async function loadCopyRange(range: CopyRange) {
+    if (!userId) return;
+
+    const token = ++copyLoadToken.current;
+    setCopyInfoMsg(null);
+    setCopyLoading(true);
+    setErrorMsg(null);
+
+    try {
+      const now = new Date();
+      const end = ymd(now);
+
+      const startDate = new Date(now);
+      if (range === "yesterday") startDate.setDate(startDate.getDate() - 1);
+      if (range === "week") startDate.setDate(startDate.getDate() - 7);
+      if (range === "month") startDate.setDate(startDate.getDate() - 30);
+
+      const start = ymd(startDate);
+
+      // 1) find logs in range
+      const { data: logs, error: logsErr } = await supabase
+        .from("daily_logs")
+        .select("id, log_date")
+        .eq("user_id", userId)
+        .gte("log_date", start)
+        .lte("log_date", end)
+        .order("log_date", { ascending: false });
+
+      if (token !== copyLoadToken.current) return;
+      if (logsErr) throw logsErr;
+
+      const logIds = (logs ?? []).map((l: any) => l.id);
+      if (logIds.length === 0) {
+        setCopyEntries([]);
+        setCopySelectedIds({});
+        setCopyInfoMsg(`No logs found for ${rangeLabel(range).toLowerCase()}.`);
+        return;
+      }
+
+      // 2) load entries for those logs
+      const { data: ents, error: entsErr } = await supabase
+        .from("food_entries")
+        .select("id, name, calories, protein_g, carbs_g, fat_g, grams, meal, created_at")
+        .in("daily_log_id", logIds)
+        .order("created_at", { ascending: false });
+
+      if (token !== copyLoadToken.current) return;
+      if (entsErr) throw entsErr;
+
+      const list = (ents ?? []) as Entry[];
+      setCopyEntries(list);
+      setCopySelectedIds({});
+      if (list.length === 0) setCopyInfoMsg(`No entries found for ${rangeLabel(range).toLowerCase()}.`);
+    } catch (e: any) {
+      if (token !== copyLoadToken.current) return;
+      setCopyEntries([]);
+      setCopySelectedIds({});
+      setErrorMsg(e?.message ?? "Error");
+    } finally {
+      if (token !== copyLoadToken.current) return;
+      setCopyLoading(false);
+    }
+  }
+
   // load when modal opens or range changes
   useEffect(() => {
     if (!userId) return;
@@ -613,102 +585,26 @@ function TodayInner() {
     return () => window.clearTimeout(handle);
   }, [userId, copyModalOpen, copyRange]);
 
-  // Filter (meal + search), then GROUP BY NAME (Option A)
-  const groupedCopy = useMemo(() => {
-    const q = copySearch.trim().toLowerCase();
-
-    const filtered = copyEntries.filter((e) => {
-      if (copyMealFilter !== "All" && (e.meal ?? "") !== copyMealFilter) return false;
-      if (!q) return true;
-      return (e.name ?? "").toLowerCase().includes(q);
-    });
-
-    type Group = {
-      key: string; // normalized
-      displayName: string;
-      entries: Entry[];
-      count: number;
-      kcal: number;
-      p: number;
-      c: number;
-      f: number;
-      grams: number;
-      meals: string[]; // unique
-      days: string[]; // unique
-    };
-
-    const map = new Map<string, Group>();
-
-    for (const e of filtered) {
-      const key = normalizeName(e.name ?? "");
-      if (!key) continue;
-
-      const existing = map.get(key);
-      if (!existing) {
-        map.set(key, {
-          key,
-          displayName: e.name ?? "",
-          entries: [e],
-          count: 1,
-          kcal: e.calories ?? 0,
-          p: e.protein_g ?? 0,
-          c: e.carbs_g ?? 0,
-          f: e.fat_g ?? 0,
-          grams: e.grams ?? 0,
-          meals: e.meal ? [e.meal] : [],
-          days: e.log_date ? [e.log_date] : [],
-        });
-      } else {
-        existing.entries.push(e);
-        existing.count += 1;
-        existing.kcal += e.calories ?? 0;
-        existing.p += e.protein_g ?? 0;
-        existing.c += e.carbs_g ?? 0;
-        existing.f += e.fat_g ?? 0;
-        existing.grams += e.grams ?? 0;
-
-        if (e.meal && !existing.meals.includes(e.meal)) existing.meals.push(e.meal);
-        if (e.log_date && !existing.days.includes(e.log_date)) existing.days.push(e.log_date);
-      }
-    }
-
-    const groups = Array.from(map.values());
-
-    // sort: most recent group first (based on latest created_at in group)
-    groups.sort((a, b) => {
-      const aLatest = a.entries.reduce((mx, e) => (e.created_at > mx ? e.created_at : mx), a.entries[0]?.created_at ?? "");
-      const bLatest = b.entries.reduce((mx, e) => (e.created_at > mx ? e.created_at : mx), b.entries[0]?.created_at ?? "");
-      return bLatest.localeCompare(aLatest);
-    });
-
-    return groups;
-  }, [copyEntries, copyMealFilter, copySearch]);
-
-  const selectedCount = useMemo(
-    () => Object.values(copySelectedGroups).filter(Boolean).length,
-    [copySelectedGroups]
-  );
-
-  function toggleCopyGroup(key: string) {
-    setCopySelectedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  function toggleCopySelected(id: string) {
+    setCopySelectedIds((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
   function selectAllVisibleCopy() {
-    const next: Record<string, boolean> = { ...copySelectedGroups };
-    for (const g of groupedCopy) next[g.key] = true;
-    setCopySelectedGroups(next);
+    const next: Record<string, boolean> = { ...copySelectedIds };
+    for (const e of filteredCopyEntries) next[e.id] = true;
+    setCopySelectedIds(next);
   }
 
   function clearAllCopy() {
-    setCopySelectedGroups({});
+    setCopySelectedIds({});
   }
 
   async function copySelectedToToday() {
     if (!userId || !dailyLogId) return;
 
-    const selectedGroups = groupedCopy.filter((g) => !!copySelectedGroups[g.key]);
-    if (selectedGroups.length === 0) {
-      setErrorMsg("Select at least one item to copy.");
+    const selected = copyEntries.filter((e) => !!copySelectedIds[e.id]);
+    if (selected.length === 0) {
+      setErrorMsg("Select at least one entry to copy.");
       return;
     }
 
@@ -717,28 +613,24 @@ function TodayInner() {
     setCopying(true);
 
     try {
-      // Option A behavior: selecting a grouped name copies ALL entries in that group
-      const rows = selectedGroups.flatMap((g) =>
-        g.entries.map((e) => ({
-          daily_log_id: dailyLogId,
-          user_id: userId,
-          name: e.name,
-          calories: e.calories ?? 0,
-          protein_g: e.protein_g ?? 0,
-          carbs_g: e.carbs_g ?? 0,
-          fat_g: e.fat_g ?? 0,
-          grams: e.grams ?? null,
-          meal: e.meal ?? "Snack",
-        }))
-      );
+      const rows = selected.map((e) => ({
+        daily_log_id: dailyLogId,
+        user_id: userId,
+        name: e.name,
+        calories: e.calories ?? 0,
+        protein_g: e.protein_g ?? 0,
+        carbs_g: e.carbs_g ?? 0,
+        fat_g: e.fat_g ?? 0,
+        grams: e.grams ?? null,
+        meal: e.meal ?? "Snack",
+      }));
 
       const { error: insErr } = await supabase.from("food_entries").insert(rows);
       if (insErr) throw insErr;
 
       await ensureLogAndLoadDay(dateStr);
-      setCopySelectedGroups({});
-
-      setCopyInfoMsg(`Copied ${rows.length} entr${rows.length === 1 ? "y" : "ies"} from ${labelRange(copyRange).toLowerCase()}.`);
+      setCopySelectedIds({});
+      setCopyInfoMsg(`Copied ${rows.length} item${rows.length === 1 ? "" : "s"} to ${dateStr}.`);
     } catch (e: any) {
       setErrorMsg(e?.message ?? "Error");
     } finally {
@@ -782,7 +674,7 @@ function TodayInner() {
                       {
                         ["--p" as any]: `${pctClamped(totals.calories, weeklyGoal.calorie_goal)}`,
                         ["--ringColor" as any]: ringColorCalories(calPct, mode),
-                      } as CSSProperties
+                      } as React.CSSProperties
                     }
                   >
                     <div className={styles.ringInner}>
@@ -804,7 +696,7 @@ function TodayInner() {
                       {
                         ["--p" as any]: `${pctClamped(totals.protein, weeklyGoal.protein_goal_g)}`,
                         ["--ringColor" as any]: ringColorProtein(protPct),
-                      } as CSSProperties
+                      } as React.CSSProperties
                     }
                   >
                     <div className={styles.ringInner}>
@@ -861,23 +753,12 @@ function TodayInner() {
           </div>
 
           <div className={styles.card}>
-            <input
-              className={styles.textInput}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Food name (fast manual entry)"
-            />
+            <input className={styles.textInput} value={name} onChange={(e) => setName(e.target.value)} placeholder="Food name (fast manual entry)" />
 
             <div className={styles.formRow}>
               <label className={styles.field}>
                 grams (g)
-                <input
-                  className={styles.numInput}
-                  value={grams}
-                  onChange={(e) => setGrams(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="g"
-                />
+                <input className={styles.numInput} value={grams} onChange={(e) => setGrams(e.target.value)} inputMode="numeric" placeholder="g" />
               </label>
 
               <label className={styles.field}>
@@ -910,7 +791,7 @@ function TodayInner() {
                 </select>
               </label>
 
-              <button className={styles.primaryButton} onClick={addEntry} disabled={loading}>
+              <button className={styles.primaryButton} onClick={addEntry} disabled={loading} type="button">
                 Add
               </button>
             </div>
@@ -1079,11 +960,11 @@ function TodayInner() {
               <div>
                 <div className={styles.modalTitle}>Quick copy</div>
                 <div className={styles.mutedSmall}>
-                  Source: <b>{labelRange(copyRange)}</b>
+                  Source: <b>{copySourceText}</b>
                   {selectedCount ? (
                     <>
                       {" "}
-                      · Selected groups: <b>{selectedCount}</b>
+                      · Selected: <b>{selectedCount}</b>
                     </>
                   ) : null}
                 </div>
@@ -1095,57 +976,32 @@ function TodayInner() {
             </div>
 
             <div className={styles.modalBody}>
-              {/* Range buttons (no date list on the left) */}
-              <div className={styles.chipsRow}>
-                <button
-                  className={`${styles.chip} ${copyRange === "yesterday" ? styles.chipActive : ""}`}
-                  onClick={() => setCopyRange("yesterday")}
-                  disabled={copying}
-                  type="button"
-                >
-                  Yesterday
-                </button>
-                <button
-                  className={`${styles.chip} ${copyRange === "week" ? styles.chipActive : ""}`}
-                  onClick={() => setCopyRange("week")}
-                  disabled={copying}
-                  type="button"
-                >
-                  Past week
-                </button>
-                <button
-                  className={`${styles.chip} ${copyRange === "month" ? styles.chipActive : ""}`}
-                  onClick={() => setCopyRange("month")}
-                  disabled={copying}
-                  type="button"
-                >
-                  Past month
-                </button>
+              {/* Range buttons + search */}
+              <div className={styles.quickCopyTop}>
+                <div className={styles.chipsRow}>
+                  {(["yesterday", "week", "month"] as CopyRange[]).map((r) => (
+                    <button
+                      key={r}
+                      className={`${styles.chip} ${copyRange === r ? styles.chipActive : ""}`}
+                      onClick={() => setCopyRange(r)}
+                      disabled={copyLoading || copying}
+                      type="button"
+                    >
+                      {rangeLabel(r)}
+                    </button>
+                  ))}
+                </div>
 
-                <div className={styles.chipsSpacer} />
-
-                <button
-                  className={styles.button}
-                  onClick={selectAllVisibleCopy}
-                  disabled={groupedCopy.length === 0 || copyLoading || copying}
-                  type="button"
-                >
-                  Select visible
-                </button>
-
-                <button className={styles.button} onClick={clearAllCopy} disabled={selectedCount === 0 || copyLoading || copying} type="button">
-                  Clear
-                </button>
+                <input
+                  className={styles.textInput}
+                  value={copySearch}
+                  onChange={(e) => setCopySearch(e.target.value)}
+                  placeholder="Search food…"
+                  disabled={copying}
+                />
               </div>
 
-              <input
-                className={styles.textInput}
-                value={copySearch}
-                onChange={(e) => setCopySearch(e.target.value)}
-                placeholder="Search food…"
-                disabled={copying}
-              />
-
+              {/* Meal filter chips + actions */}
               <div className={styles.chipsRow}>
                 {(["All", "Breakfast", "Lunch", "Dinner", "Snack"] as MealFilter[]).map((m) => (
                   <button
@@ -1158,64 +1014,83 @@ function TodayInner() {
                     {m}
                   </button>
                 ))}
+
+                <div className={styles.chipsSpacer} />
+
+                <button
+                  className={styles.button}
+                  onClick={selectAllVisibleCopy}
+                  disabled={filteredCopyEntries.length === 0 || copyLoading || copying}
+                  type="button"
+                >
+                  Select visible
+                </button>
+
+                <button className={styles.button} onClick={clearAllCopy} disabled={selectedCount === 0 || copyLoading || copying} type="button">
+                  Clear
+                </button>
               </div>
 
               <div className={styles.modalList}>
                 {copyLoading ? <div className={styles.mutedSmall}>Loading…</div> : null}
 
-                {groupedCopy.length === 0 ? (
+                {filteredCopyEntries.length === 0 ? (
                   <div className={styles.mutedSmall}>
                     {copyEntries.length === 0 ? "No entries for this range." : "No matches for your filters."}
                   </div>
                 ) : (
                   <div className={styles.copyList}>
-                    {groupedCopy.map((g) => {
-                      const checked = !!copySelectedGroups[g.key];
+                    {groupedCopy.map(({ day, entries }) => (
+                      <div key={day} className={styles.copyDayGroup}>
+                        <div className={styles.copyDayHeader}>{day}</div>
 
-                      const mealsLabel = g.meals.length ? g.meals.join(", ") : "-";
-                      const daysLabel = compactDays(g.days);
+                        {entries.map((e) => {
+                          const checked = !!copySelectedIds[e.id];
+                          const kcal = e.calories ?? 0;
+                          const p = e.protein_g ?? 0;
+                          const c = e.carbs_g ?? 0;
+                          const f = e.fat_g ?? 0;
+                          const g = e.grams ?? null;
 
-                      return (
-                        <button
-                          key={g.key}
-                          type="button"
-                          className={`${styles.copyRowItem} ${checked ? styles.copyRowItemActive : ""}`}
-                          onClick={() => toggleCopyGroup(g.key)}
-                          disabled={copyLoading || copying}
-                        >
-                          <input
-                            className={styles.checkbox}
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleCopyGroup(g.key)}
-                            onClick={(ev) => ev.stopPropagation()}
-                            disabled={copyLoading || copying}
-                            aria-label={`Select ${g.displayName}`}
-                          />
+                          return (
+                            <button
+                              key={e.id}
+                              type="button"
+                              className={`${styles.copyRowItem} ${checked ? styles.copyRowItemActive : ""}`}
+                              onClick={() => toggleCopySelected(e.id)}
+                              disabled={copyLoading || copying}
+                            >
+                              <input
+                                className={styles.checkbox}
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleCopySelected(e.id)}
+                                onClick={(ev) => ev.stopPropagation()}
+                                disabled={copyLoading || copying}
+                                aria-label={`Select ${e.name}`}
+                              />
 
-                          <span className={styles.mealBadge}>{g.count}x</span>
+                              <span className={styles.mealBadge}>{e.meal ?? "Snack"}</span>
 
-                          <span className={styles.copyMain}>
-                            <span className={styles.copyName}>{g.displayName}</span>
-                            <span className={styles.copyMeta}>
-                              {g.kcal} kcal · P {g.p} · C {g.c} · F {g.f}
-                              {g.grams ? ` · ${g.grams}g` : ""}
-                              {" · "}
-                              Meals: {mealsLabel}
-                              {" · "}
-                              Days: {daysLabel}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
+                              <span className={styles.copyMain}>
+                                <span className={styles.copyName}>{e.name}</span>
+                                <span className={styles.copyMeta}>
+                                  {kcal} kcal · P {p} · C {c} · F {f}
+                                  {g != null ? ` · ${g}g` : ""}
+                                </span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
 
               <div className={styles.copyFooter}>
                 <div className={styles.mutedSmall}>
-                  Selected groups: <b>{selectedCount}</b>
+                  Selected: <b>{selectedCount}</b>
                   {copyInfoMsg ? <span className={styles.copyInfo}> · {copyInfoMsg}</span> : null}
                 </div>
 
@@ -1225,7 +1100,7 @@ function TodayInner() {
                   disabled={selectedCount === 0 || copyLoading || copying || loading || !dailyLogId}
                   type="button"
                 >
-                  {copying ? "Copying…" : `Copy selected`}
+                  {copying ? "Copying…" : `Copy selected${selectedCount ? ` (${selectedCount})` : ""}`}
                 </button>
               </div>
             </div>
