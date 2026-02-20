@@ -67,6 +67,15 @@ function toNullableInt(v: string): number | null {
   return Math.max(0, Math.floor(n));
 }
 
+function parseWeightKg(v: string): number | null {
+  const s = v.trim().replace(",", ".");
+  if (!s) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n)) return null;
+  if (n <= 0) return null;
+  return Math.round(n * 100) / 100;
+}
+
 function pctRaw(value: number, goal: number | null): number {
   if (!goal || goal <= 0) return 0;
   return (value / goal) * 100;
@@ -108,9 +117,10 @@ export default function WeekPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [weekStart, setWeekStart] = useState<string>(() => ymd(startOfWeekMonday(ymd(new Date()))));
 
-  const [weekRows, setWeekRows] = useState<{ dateStr: string; label: string; totals: Totals; weightKg: number | null }[]>([]);
+  const [weekRows, setWeekRows] = useState<{ dateStr: string; label: string; totals: Totals }[]>([]);
   const [weekTotals, setWeekTotals] = useState<Totals>(emptyTotals());
 
+  // weekly goals UI
   const [goalMode, setGoalMode] = useState<"bulk" | "cut">("cut");
   const [calorieGoalStr, setCalorieGoalStr] = useState<string>("");
   const [proteinGoalStr, setProteinGoalStr] = useState<string>("");
@@ -118,6 +128,11 @@ export default function WeekPage() {
   const [savingGoal, setSavingGoal] = useState(false);
   const [goalMsg, setGoalMsg] = useState<string | null>(null);
 
+  // weekly weight (stored in daily_logs.weight_kg for Monday only)
+  const [weekWeightKg, setWeekWeightKg] = useState<string>("");
+  const [savingWeight, setSavingWeight] = useState(false);
+
+  // expand/collapse days
   const [openDays, setOpenDays] = useState<Set<string>>(() => new Set());
   const [entriesByDay, setEntriesByDay] = useState<Record<string, Entry[]>>({});
   const [loadingDays, setLoadingDays] = useState<Set<string>>(() => new Set());
@@ -175,11 +190,72 @@ export default function WeekPage() {
     setProteinGoalStr(pg != null ? String(pg) : "");
   }
 
+  async function loadWeekMondayWeight(weekStartYmd: string) {
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from("daily_logs")
+      .select("weight_kg")
+      .eq("user_id", userId)
+      .eq("log_date", weekStartYmd)
+      .maybeSingle();
+
+    if (error) return;
+
+    const w = (data as any)?.weight_kg ?? null;
+    setWeekWeightKg(w != null ? String(w) : "");
+  }
+
+  async function saveWeekMondayWeight() {
+    if (!userId) return;
+
+    setSavingWeight(true);
+    setErrorMsg(null);
+    setGoalMsg(null);
+
+    try {
+      const w = parseWeightKg(weekWeightKg);
+
+      const { data: existing, error: exErr } = await supabase
+        .from("daily_logs")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("log_date", weekStart)
+        .maybeSingle();
+
+      if (exErr) throw exErr;
+
+      let logId = (existing as any)?.id as string | undefined;
+
+      if (!logId) {
+        const { data: created, error: cErr } = await supabase
+          .from("daily_logs")
+          .insert({ user_id: userId, log_date: weekStart, weight_kg: w })
+          .select("id")
+          .single();
+
+        if (cErr) throw cErr;
+        logId = (created as any).id;
+      } else {
+        const { error: uErr } = await supabase.from("daily_logs").update({ weight_kg: w }).eq("id", logId);
+        if (uErr) throw uErr;
+      }
+
+      setWeekWeightKg(w != null ? String(w) : "");
+      setGoalMsg("Saved week weight.");
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? "Error saving week weight");
+    } finally {
+      setSavingWeight(false);
+    }
+  }
+
   async function saveWeeklyGoal() {
     if (!userId) return;
 
     setGoalMsg(null);
     setSavingGoal(true);
+    setErrorMsg(null);
 
     try {
       const payload = {
@@ -210,6 +286,7 @@ export default function WeekPage() {
 
     try {
       await loadWeeklyGoal(weekStartYmd);
+      await loadWeekMondayWeight(weekStartYmd);
 
       const start = new Date(`${weekStartYmd}T00:00:00`);
       const days: string[] = [];
@@ -221,20 +298,15 @@ export default function WeekPage() {
 
       const { data: logs, error: logsErr } = await supabase
         .from("daily_logs")
-        .select("id, log_date, weight_kg")
+        .select("id, log_date")
         .eq("user_id", userId!)
         .in("log_date", days);
 
       if (logsErr) throw logsErr;
 
       const logByDate = new Map<string, string>();
-      const weightByDate = new Map<string, number | null>();
-
       for (const l of (logs ?? []) as any[]) {
-        if (l?.log_date && l?.id) {
-          logByDate.set(l.log_date, l.id);
-          weightByDate.set(l.log_date, l.weight_kg ?? null);
-        }
+        if (l?.log_date && l?.id) logByDate.set(l.log_date, l.id);
       }
 
       const logIds = Array.from(logByDate.values());
@@ -275,7 +347,7 @@ export default function WeekPage() {
           fat: list.reduce((s, x) => s + (x.fat_g ?? 0), 0),
           grams: list.reduce((s, x) => s + (x.grams ?? 0), 0),
         };
-        return { dateStr: d, label: formatDayLabel(d), totals: t, weightKg: weightByDate.get(d) ?? null };
+        return { dateStr: d, label: formatDayLabel(d), totals: t };
       });
 
       const wt = rows.reduce(
@@ -418,7 +490,8 @@ export default function WeekPage() {
           <div className={styles.totalsInline}>
             <div>Week: {weekTotals.calories} kcal</div>
             <div>
-              P: {weekTotals.protein}g · C: {weekTotals.carbs}g · F: {weekTotals.fat}g · G: {weekTotals.grams}g
+              P: {weekTotals.protein}g · C: {weekTotals.carbs}g · F: {weekTotals.fat}g · G: {weekTotals.grams}g · W:{" "}
+              {weekWeightKg ? `${weekWeightKg}kg` : "-"}
             </div>
           </div>
         </div>
@@ -477,63 +550,85 @@ export default function WeekPage() {
           </div>
         ) : null}
 
-        <div className={styles.controlsRow}>
-          <span className={styles.dateLabel}>Week of</span>
-          <DatePicker value={weekStart} onChange={onPickWeek} />
+        {/* Controls (2 rows) */}
+        <div className={`${styles.controlsRow} ${styles.weekControls}`}>
+          <div className={styles.weekControlsTop}>
+            {/* ✅ Start moved LEFT of date picker */}
+            <div className={styles.weekTotals}>
+              <span>Start:</span>
+              <span>{weekStart}</span>
+            </div>
 
-          <div className={styles.weekNav}>
-            <button className={styles.button} onClick={prevWeek} disabled={loading}>
-              ←
-            </button>
-            <button className={styles.primaryButton} onClick={goToThisWeek} disabled={loading}>
-              This week
-            </button>
-            <button className={styles.button} onClick={nextWeek} disabled={loading}>
-              →
-            </button>
+            <span className={styles.dateLabel}></span>
+            <DatePicker value={weekStart} onChange={onPickWeek} />
+
+            <div className={styles.weekNav}>
+              <button className={styles.button} onClick={prevWeek} disabled={loading}>
+                ←
+              </button>
+              <button className={styles.primaryButton} onClick={goToThisWeek} disabled={loading}>
+                This week
+              </button>
+              <button className={styles.button} onClick={nextWeek} disabled={loading}>
+                →
+              </button>
+            </div>
           </div>
 
-          <label className={styles.field}>
-            Mode
-            <select className={styles.select} value={goalMode} onChange={(e) => setGoalMode(e.target.value as any)} disabled={loading || savingGoal}>
-              <option value="bulk">Bulk</option>
-              <option value="cut">Cut</option>
-            </select>
-          </label>
+          <div className={styles.weekControlsBottom}>
+            <label className={styles.field}>
+              Mode
+              <select className={styles.select} value={goalMode} onChange={(e) => setGoalMode(e.target.value as any)} disabled={loading || savingGoal}>
+                <option value="bulk">Bulk</option>
+                <option value="cut">Cut</option>
+              </select>
+            </label>
 
-          <label className={styles.field}>
-            Calories goal
-            <input
-              className={styles.numInput}
-              type="number"
-              inputMode="numeric"
-              value={calorieGoalStr}
-              onChange={(e) => setCalorieGoalStr(e.target.value)}
-              placeholder="e.g. 2200"
-              disabled={loading || savingGoal}
-            />
-          </label>
+            <label className={styles.field}>
+              Calories goal
+              <input
+                className={styles.numInput}
+                type="number"
+                inputMode="numeric"
+                value={calorieGoalStr}
+                onChange={(e) => setCalorieGoalStr(e.target.value)}
+                placeholder="e.g. 2200"
+                disabled={loading || savingGoal}
+              />
+            </label>
 
-          <label className={styles.field}>
-            Protein goal (g)
-            <input
-              className={styles.numInput}
-              type="number"
-              inputMode="numeric"
-              value={proteinGoalStr}
-              onChange={(e) => setProteinGoalStr(e.target.value)}
-              placeholder="e.g. 180"
-              disabled={loading || savingGoal}
-            />
-          </label>
+            <label className={styles.field}>
+              Protein goal (g)
+              <input
+                className={styles.numInput}
+                type="number"
+                inputMode="numeric"
+                value={proteinGoalStr}
+                onChange={(e) => setProteinGoalStr(e.target.value)}
+                placeholder="e.g. 180"
+                disabled={loading || savingGoal}
+              />
+            </label>
 
-          <button className={styles.button} onClick={saveWeeklyGoal} disabled={loading || savingGoal}>
-            {savingGoal ? "Saving…" : "Save goals"}
-          </button>
+            <label className={styles.field}>
+              Current week weight (kg)
+              <input
+                className={styles.numInput}
+                value={weekWeightKg}
+                onChange={(e) => setWeekWeightKg(e.target.value)}
+                onBlur={saveWeekMondayWeight}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+                }}
+                inputMode="decimal"
+                placeholder="e.g. 75"
+                disabled={loading || savingGoal || savingWeight}
+              />
+            </label>
 
-          <div className={styles.weekTotals}>
-            <span>Start:</span>
-            <span>{weekStart}</span>
+            <button className={styles.button} onClick={saveWeeklyGoal} disabled={loading || savingGoal}>
+              {savingGoal ? "Saving…" : "Save goals"}
+            </button>
           </div>
         </div>
 
@@ -547,11 +642,10 @@ export default function WeekPage() {
           </div>
 
           <div className={styles.tableWrap}>
-            <table className={styles.table}>
+            <table className={`${styles.table} ${styles.weekTable}`}>
               <thead>
                 <tr>
                   <th className={styles.th}>Day</th>
-                  <th className={`${styles.th} ${styles.thNum}`}>Weight</th>
                   <th className={`${styles.th} ${styles.thNum}`}>Calories</th>
                   <th className={`${styles.th} ${styles.thNum}`}>Protein</th>
                   <th className={`${styles.th} ${styles.thNum}`}>Carbs</th>
@@ -571,7 +665,6 @@ export default function WeekPage() {
                     <React.Fragment key={r.dateStr}>
                       <tr className={styles.tr}>
                         <td className={styles.td}>{r.label}</td>
-                        <td className={`${styles.td} ${styles.tdNum}`}>{r.weightKg ?? "-"}</td>
                         <td className={`${styles.td} ${styles.tdNum}`}>{r.totals.calories}</td>
                         <td className={`${styles.td} ${styles.tdNum}`}>{r.totals.protein}</td>
                         <td className={`${styles.td} ${styles.tdNum}`}>{r.totals.carbs}</td>
@@ -586,7 +679,7 @@ export default function WeekPage() {
 
                       {isOpen ? (
                         <tr className={styles.tr}>
-                          <td className={styles.td} colSpan={8}>
+                          <td className={styles.td} colSpan={7}>
                             {isLoadingDay ? (
                               <div className={styles.muted}>Loading…</div>
                             ) : dayEntries.length === 0 ? (
@@ -630,7 +723,7 @@ export default function WeekPage() {
 
                 {weekRows.length === 0 ? (
                   <tr>
-                    <td className={styles.td} colSpan={8}>
+                    <td className={styles.td} colSpan={7}>
                       <span className={styles.muted}>No rows to display.</span>
                     </td>
                   </tr>

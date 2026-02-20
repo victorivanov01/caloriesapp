@@ -972,3 +972,101 @@
   font-size: 12px;
   color: rgba(231, 234, 240, 0.70);
 }
+
+/* =========================
+   Week comparison table fix
+   (only affects the Week comparison table)
+   ========================= */
+
+.weekTable {
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* 7 columns:
+   Day | Calories | Protein | Carbs | Fat | Grams | Open */
+.weekTable th:nth-child(1),
+.weekTable td:nth-child(1) { width: 140px; }
+
+.weekTable th:nth-child(2),
+.weekTable td:nth-child(2) { width: 92px; }
+
+.weekTable th:nth-child(3),
+.weekTable td:nth-child(3) { width: 80px; }
+
+.weekTable th:nth-child(4),
+.weekTable td:nth-child(4) { width: 80px; }
+
+.weekTable th:nth-child(5),
+.weekTable td:nth-child(5) { width: 70px; }
+
+.weekTable th:nth-child(6),
+.weekTable td:nth-child(6) { width: 88px; }
+
+.weekTable th:nth-child(7),
+.weekTable td:nth-child(7) {
+  width: 120px;
+  white-space: nowrap;
+}
+
+/* keep "View" from hugging the rounded edge */
+.weekTable th:last-child,
+.weekTable td:last-child {
+  padding-right: 16px;
+}
+
+.weekTable td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  /* Do NOT force horizontal scroll on Week comparison */
+  .weekTable {
+    min-width: 0 !important;
+  }
+}
+
+/* =========================
+   Week controls layout fix
+   (center the content so no big empty sides)
+   ========================= */
+
+.weekControls {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.weekControlsTop,
+.weekControlsBottom {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end; /* 👈 important */
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+/* Make Save button align like inputs */
+.weekControlsBottom > .button,
+.weekControlsBottom > .primaryButton {
+  height: 40px;          /* match inputs */
+  margin-top: 18px;      /* match label height */
+}
+
+/* ✅ Start badge is now in the TOP row -> don't push it away */
+.weekControlsTop .weekTotals {
+  margin-left: 0;
+}
+
+/* On mobile, stack nicely */
+@media (max-width: 768px) {
+  .weekControlsTop,
+  .weekControlsBottom {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .weekControlsTop .weekTotals {
+    justify-content: space-between;
+  }
+}

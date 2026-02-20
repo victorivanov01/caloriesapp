@@ -83,15 +83,6 @@ function emptyTotals(): Totals {
   return { calories: 0, protein: 0, carbs: 0, fat: 0, grams: 0 };
 }
 
-function parseWeightKg(v: string): number | null {
-  const s = v.trim().replace(",", ".");
-  if (!s) return null;
-  const n = Number(s);
-  if (!Number.isFinite(n)) return null;
-  if (n <= 0) return null;
-  return Math.round(n * 100) / 100;
-}
-
 function pctRaw(value: number, goal: number | null): number {
   if (!goal || goal <= 0) return 0;
   return (value / goal) * 100;
@@ -167,6 +158,7 @@ function TodayInner() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [totals, setTotals] = useState<Totals>(emptyTotals());
 
+  // ✅ Weekly weight (stored on Monday daily_logs row)
   const [weightKg, setWeightKg] = useState<string>("");
 
   const [weekStart, setWeekStart] = useState<string>(() => ymd(startOfWeekMonday(ymd(new Date()))));
@@ -287,6 +279,32 @@ function TodayInner() {
     })();
   }, [userId, dateStr, supabase]);
 
+  // ✅ Load weekly weight (Monday log) for the selected date
+  async function loadWeeklyWeight(forDateYmd: string) {
+    if (!userId) return;
+
+    const ws = ymd(startOfWeekMonday(forDateYmd));
+    try {
+      const { data, error } = await supabase
+        .from("daily_logs")
+        .select("weight_kg")
+        .eq("user_id", userId)
+        .eq("log_date", ws)
+        .maybeSingle();
+
+      if (error) throw error;
+      setWeightKg(data?.weight_kg != null ? String(data.weight_kg) : "");
+    } catch {
+      setWeightKg("");
+    }
+  }
+
+  useEffect(() => {
+    if (!userId) return;
+    void loadWeeklyWeight(dateStr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, dateStr]);
+
   async function ensureLogAndLoadDay(day: string) {
     setErrorMsg(null);
     setLoading(true);
@@ -294,7 +312,7 @@ function TodayInner() {
     try {
       const { data: existing, error: exErr } = await supabase
         .from("daily_logs")
-        .select("id, weight_kg")
+        .select("id")
         .eq("user_id", userId!)
         .eq("log_date", day)
         .maybeSingle();
@@ -307,14 +325,11 @@ function TodayInner() {
         const { data: created, error: cErr } = await supabase
           .from("daily_logs")
           .insert({ user_id: userId!, log_date: day })
-          .select("id, weight_kg")
+          .select("id")
           .single();
 
         if (cErr) throw cErr;
         logId = created.id;
-        setWeightKg(created.weight_kg != null ? String(created.weight_kg) : "");
-      } else {
-        setWeightKg(existing?.weight_kg != null ? String(existing.weight_kg) : "");
       }
 
       setDailyLogId(logId ?? null);
@@ -352,20 +367,6 @@ function TodayInner() {
       setEditDraft(null);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function saveWeight() {
-    if (!dailyLogId) return;
-    setErrorMsg(null);
-
-    try {
-      const w = parseWeightKg(weightKg);
-      const { error } = await supabase.from("daily_logs").update({ weight_kg: w }).eq("id", dailyLogId);
-      if (error) throw error;
-      setWeightKg(w != null ? String(w) : "");
-    } catch (e: any) {
-      setErrorMsg(e?.message ?? "Error");
     }
   }
 
@@ -811,22 +812,6 @@ function TodayInner() {
         <div className={styles.controlsRow}>
           <label className={styles.dateLabel}>
             Date <DatePicker value={dateStr} onChange={setDateStr} />
-          </label>
-
-          <label className={styles.field}>
-            Weight (kg)
-            <input
-              className={styles.numInput}
-              value={weightKg}
-              onChange={(e) => setWeightKg(e.target.value)}
-              onBlur={saveWeight}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
-              }}
-              inputMode="decimal"
-              placeholder="e.g. 72.5"
-              disabled={loading || !dailyLogId}
-            />
           </label>
         </div>
 
