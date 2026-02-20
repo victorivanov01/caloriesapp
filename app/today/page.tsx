@@ -149,6 +149,10 @@ function rangeLabel(r: CopyRange): string {
   return "Past month";
 }
 
+function normalizeFoodName(name: string | null | undefined): string {
+  return (name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 function TodayInner() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const searchParams = useSearchParams();
@@ -181,6 +185,14 @@ function TodayInner() {
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // ===== Quick Add Autocomplete =====
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [nameSuggestions, setNameSuggestions] = useState<Entry[]>([]);
+  const suggestToken = useRef(0);
+  const suggestTimer = useRef<number | null>(null);
+  const suggestWrapRef = useRef<HTMLDivElement | null>(null);
 
   // ===== Quick Copy (MODAL) =====
   const [copyModalOpen, setCopyModalOpen] = useState(false);
@@ -218,10 +230,7 @@ function TodayInner() {
     return days.map((day) => ({ day, entries: map.get(day)! }));
   }, [filteredCopyEntries]);
 
-  const copySourceText = useMemo(() => {
-    // purely UI label (top left)
-    return rangeLabel(copyRange);
-  }, [copyRange]);
+  const copySourceText = useMemo(() => rangeLabel(copyRange), [copyRange]);
 
   // init date from /today?date=YYYY-MM-DD once
   useEffect(() => {
@@ -396,6 +405,9 @@ function TodayInner() {
       setFat("");
       setMeal("Snack");
 
+      setSuggestOpen(false);
+      setNameSuggestions([]);
+
       await ensureLogAndLoadDay(dateStr);
     } catch (e: any) {
       setErrorMsg(e?.message ?? "Error");
@@ -473,6 +485,84 @@ function TodayInner() {
     }
   }
 
+  // ===== Quick Add Autocomplete =====
+  async function loadNameSuggestions(query: string) {
+    if (!userId) return;
+
+    const token = ++suggestToken.current;
+    setSuggestLoading(true);
+
+    try {
+      const q = query.trim();
+      if (q.length < 2) {
+        setNameSuggestions([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("food_entries")
+        .select("id, name, calories, protein_g, carbs_g, fat_g, grams, meal, created_at")
+        .eq("user_id", userId)
+        .ilike("name", `%${q}%`)
+        .order("created_at", { ascending: false })
+        .limit(40);
+
+      if (token !== suggestToken.current) return;
+      if (error) throw error;
+
+      const list = (data ?? []) as Entry[];
+
+      // dedupe by name, keep newest
+      const seen = new Set<string>();
+      const deduped: Entry[] = [];
+      for (const e of list) {
+        const key = normalizeFoodName(e.name);
+        if (!key) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(e);
+        if (deduped.length >= 10) break;
+      }
+
+      setNameSuggestions(deduped);
+    } catch {
+      setNameSuggestions([]);
+    } finally {
+      if (token !== suggestToken.current) return;
+      setSuggestLoading(false);
+    }
+  }
+
+  function applySuggestion(e: Entry) {
+    setName(e.name ?? "");
+    setGrams(e.grams != null ? String(e.grams) : "");
+    setCalories(e.calories != null ? String(e.calories) : "");
+    setProtein(e.protein_g != null ? String(e.protein_g) : "");
+    setCarbs(e.carbs_g != null ? String(e.carbs_g) : "");
+    setFat(e.fat_g != null ? String(e.fat_g) : "");
+    setMeal((e.meal ?? "Snack") || "Snack");
+
+    setSuggestOpen(false);
+    setNameSuggestions([]);
+  }
+
+  function closeSuggestionsKeepText() {
+    setSuggestOpen(false);
+    setNameSuggestions([]);
+  }
+
+  // close on outside click
+  useEffect(() => {
+    const onDown = (ev: MouseEvent) => {
+      const el = suggestWrapRef.current;
+      if (!el) return;
+      if (el.contains(ev.target as Node)) return;
+      closeSuggestionsKeepText();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
   // ===== Quick Copy modal behavior =====
   function openCopyModal() {
     setCopyModalOpen(true);
@@ -528,7 +618,6 @@ function TodayInner() {
 
       const start = ymd(startDate);
 
-      // 1) find logs in range
       const { data: logs, error: logsErr } = await supabase
         .from("daily_logs")
         .select("id, log_date")
@@ -548,7 +637,6 @@ function TodayInner() {
         return;
       }
 
-      // 2) load entries for those logs
       const { data: ents, error: entsErr } = await supabase
         .from("food_entries")
         .select("id, name, calories, protein_g, carbs_g, fat_g, grams, meal, created_at")
@@ -573,7 +661,6 @@ function TodayInner() {
     }
   }
 
-  // load when modal opens or range changes
   useEffect(() => {
     if (!userId) return;
     if (!copyModalOpen) return;
@@ -746,39 +833,139 @@ function TodayInner() {
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>Quick add</h2>
-
-            <button className={styles.button} onClick={openCopyModal} type="button" disabled={loading || !dailyLogId}>
-              Quick copy
-            </button>
           </div>
 
           <div className={styles.card}>
-            <input className={styles.textInput} value={name} onChange={(e) => setName(e.target.value)} placeholder="Food name (fast manual entry)" />
+            <div ref={suggestWrapRef} className={styles.suggestWrap}>
+              <input
+                className={styles.textInput}
+                value={name}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setName(v);
+                  setErrorMsg(null);
+
+                  if (suggestTimer.current) window.clearTimeout(suggestTimer.current);
+
+                  const q = v.trim();
+                  if (!userId || q.length < 2) {
+                    setSuggestOpen(false);
+                    setNameSuggestions([]);
+                    return;
+                  }
+
+                  setSuggestOpen(true);
+                  suggestTimer.current = window.setTimeout(() => {
+                    void loadNameSuggestions(q);
+                  }, 180);
+                }}
+                onFocus={() => {
+                  const q = name.trim();
+                  if (q.length >= 2 && nameSuggestions.length > 0) setSuggestOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    closeSuggestionsKeepText();
+                    return;
+                  }
+
+                  // ✅ Enter closes suggestions and keeps typed text (no auto-select)
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    closeSuggestionsKeepText();
+                    return;
+                  }
+                }}
+                placeholder="Food name (fast manual entry)"
+              />
+
+              {suggestOpen ? (
+                <div className={styles.suggestMenu} role="listbox" aria-label="Previous foods">
+                  {suggestLoading ? (
+                    <div className={styles.suggestEmpty}>Loading…</div>
+                  ) : name.trim().length < 2 ? (
+                    <div className={styles.suggestEmpty}>Type at least 2 characters…</div>
+                  ) : nameSuggestions.length === 0 ? (
+                    <div className={styles.suggestEmpty}>No matches.</div>
+                  ) : (
+                    nameSuggestions.map((s) => {
+                      const kcal = s.calories ?? 0;
+                      const p = s.protein_g ?? 0;
+                      const c = s.carbs_g ?? 0;
+                      const f = s.fat_g ?? 0;
+                      const g = s.grams ?? null;
+
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          className={styles.suggestItem}
+                          onClick={() => applySuggestion(s)}
+                        >
+                          <div className={styles.suggestName}>{s.name}</div>
+                          <div className={styles.suggestMeta}>
+                            {kcal} kcal · P {p} · C {c} · F {f}
+                            {g != null ? ` · ${g}g` : ""}
+                            {s.meal ? ` · ${s.meal}` : ""}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              ) : null}
+            </div>
 
             <div className={styles.formRow}>
               <label className={styles.field}>
                 grams (g)
-                <input className={styles.numInput} value={grams} onChange={(e) => setGrams(e.target.value)} inputMode="numeric" placeholder="g" />
+                <input
+                  className={styles.numInput}
+                  value={grams}
+                  onChange={(e) => setGrams(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="g"
+                />
               </label>
 
               <label className={styles.field}>
                 kcal
-                <input className={styles.numInput} value={calories} onChange={(e) => setCalories(e.target.value)} inputMode="numeric" />
+                <input
+                  className={styles.numInput}
+                  value={calories}
+                  onChange={(e) => setCalories(e.target.value)}
+                  inputMode="numeric"
+                />
               </label>
 
               <label className={styles.field}>
                 protein (g)
-                <input className={styles.numInput} value={protein} onChange={(e) => setProtein(e.target.value)} inputMode="numeric" />
+                <input
+                  className={styles.numInput}
+                  value={protein}
+                  onChange={(e) => setProtein(e.target.value)}
+                  inputMode="numeric"
+                />
               </label>
 
               <label className={styles.field}>
                 carbs (g)
-                <input className={styles.numInput} value={carbs} onChange={(e) => setCarbs(e.target.value)} inputMode="numeric" />
+                <input
+                  className={styles.numInput}
+                  value={carbs}
+                  onChange={(e) => setCarbs(e.target.value)}
+                  inputMode="numeric"
+                />
               </label>
 
               <label className={styles.field}>
                 fat (g)
-                <input className={styles.numInput} value={fat} onChange={(e) => setFat(e.target.value)} inputMode="numeric" />
+                <input
+                  className={styles.numInput}
+                  value={fat}
+                  onChange={(e) => setFat(e.target.value)}
+                  inputMode="numeric"
+                />
               </label>
 
               <label className={styles.field}>
@@ -791,9 +978,21 @@ function TodayInner() {
                 </select>
               </label>
 
-              <button className={styles.primaryButton} onClick={addEntry} disabled={loading} type="button">
-                Add
-              </button>
+              {/* ✅ Buttons together: Add + Quick copy */}
+              <div className={styles.quickAddActions}>
+                <button className={styles.primaryButton} onClick={addEntry} disabled={loading} type="button">
+                  Add
+                </button>
+
+                <button
+                  className={`${styles.button} ${styles.quickCopyButton}`}
+                  onClick={openCopyModal}
+                  type="button"
+                  disabled={loading || !dailyLogId}
+                >
+                  Quick copy
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -976,7 +1175,6 @@ function TodayInner() {
             </div>
 
             <div className={styles.modalBody}>
-              {/* Range buttons + search */}
               <div className={styles.quickCopyTop}>
                 <div className={styles.chipsRow}>
                   {(["yesterday", "week", "month"] as CopyRange[]).map((r) => (
@@ -1001,7 +1199,6 @@ function TodayInner() {
                 />
               </div>
 
-              {/* Meal filter chips + actions */}
               <div className={styles.chipsRow}>
                 {(["All", "Breakfast", "Lunch", "Dinner", "Snack"] as MealFilter[]).map((m) => (
                   <button
@@ -1026,7 +1223,12 @@ function TodayInner() {
                   Select visible
                 </button>
 
-                <button className={styles.button} onClick={clearAllCopy} disabled={selectedCount === 0 || copyLoading || copying} type="button">
+                <button
+                  className={styles.button}
+                  onClick={clearAllCopy}
+                  disabled={selectedCount === 0 || copyLoading || copying}
+                  type="button"
+                >
                   Clear
                 </button>
               </div>

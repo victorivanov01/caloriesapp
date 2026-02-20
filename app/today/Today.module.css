@@ -296,30 +296,27 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-
-  /* ✅ keeps the table from resizing when inputs appear */
   table-layout: fixed;
 }
 
-/* ✅ stable column widths so Edit mode can't change layout */
 .table th:nth-child(1),
 .table td:nth-child(1) {
-  width: 120px; /* Meal */
+  width: 120px;
 }
 
 .table th:nth-child(2),
 .table td:nth-child(2) {
-  width: auto; /* Item (flex) */
+  width: auto;
 }
 
 .table th:nth-child(3),
 .table td:nth-child(3) {
-  width: 70px; /* g */
+  width: 70px;
 }
 
 .table th:nth-child(4),
 .table td:nth-child(4) {
-  width: 80px; /* kcal */
+  width: 80px;
 }
 
 .table th:nth-child(5),
@@ -328,21 +325,19 @@
 .table td:nth-child(6),
 .table th:nth-child(7),
 .table td:nth-child(7) {
-  width: 60px; /* P/C/F */
+  width: 60px;
 }
 
 .table th:nth-child(8),
 .table td:nth-child(8) {
-  width: 170px; /* actions */
+  width: 170px;
 }
 
-/* Item cell: allow wrapping without changing column width */
 .table td:nth-child(2) {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-/* Actions: never wrap into multiple lines */
 .table td:nth-child(8) {
   white-space: nowrap;
 }
@@ -410,7 +405,6 @@
   color: rgba(255, 220, 220, 0.95);
 }
 
-/* Hide number input spinners (Chrome, Edge, Safari) */
 .numInput::-webkit-outer-spin-button,
 .numInput::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -418,13 +412,10 @@
   margin: 0;
 }
 
-/* Hide number input spinners (Firefox) */
 .numInput[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
-
-/* ===== Mobile adjustments ===== */
 
 @media (max-width: 768px) {
   .container {
@@ -470,25 +461,23 @@
     width: 100%;
   }
 
-  /* ✅ MOBILE FIX: prevent one-letter-per-line in "Item" */
   .table {
-    min-width: 780px; /* a bit wider = more room for Item */
+    min-width: 780px;
   }
 
-  /* ✅ MOBILE: reduce other fixed columns so Item becomes wider */
   .table th:nth-child(1),
   .table td:nth-child(1) {
-    width: 90px; /* Meal */
+    width: 90px;
   }
 
   .table th:nth-child(3),
   .table td:nth-child(3) {
-    width: 55px; /* g */
+    width: 55px;
   }
 
   .table th:nth-child(4),
   .table td:nth-child(4) {
-    width: 65px; /* kcal */
+    width: 65px;
   }
 
   .table th:nth-child(5),
@@ -497,37 +486,31 @@
   .table td:nth-child(6),
   .table th:nth-child(7),
   .table td:nth-child(7) {
-    width: 50px; /* P/C/F */
+    width: 50px;
   }
 
   .table th:nth-child(8),
   .table td:nth-child(8) {
-    width: 140px; /* actions */
+    width: 140px;
   }
 
-  /* ✅ MOBILE: show more of Item (2–3 lines, no ellipsis) */
-.table td:nth-child(2),
-.table th:nth-child(2) {
-  white-space: normal;
-}
+  .table td:nth-child(2),
+  .table th:nth-child(2) {
+    white-space: normal;
+  }
 
-.table td:nth-child(2) {
-  overflow: visible;
-  text-overflow: clip;
-
-  /* wrap nicely */
-  overflow-wrap: anywhere;
-  word-break: break-word;
-
-}
-
+  .table td:nth-child(2) {
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 }
 
 .td button + button {
   margin-left: 8px;
 }
 
-/* ✅ inputs/selects inside table MUST fit the cell (no column push) */
 .td .numInput,
 .td .textInput,
 .td .select {
@@ -586,7 +569,6 @@
   justify-items: center;
 }
 
-/* ✅ ONLY CHANGE is here: remove seam/edge popping */
 .ring {
   --p: 0;
   --ringColor: rgba(16, 185, 129, 0.92);
@@ -666,7 +648,6 @@
   }
 }
 
-
 /* ===== Quick Copy UI (Modal) ===== */
 .modalOverlay {
   position: fixed;
@@ -730,7 +711,6 @@
   align-items: center;
 }
 
-/* ===== Quick Copy: date grouping (add this) ===== */
 .copyDayGroup {
   display: grid;
   gap: 8px;
@@ -747,6 +727,7 @@
   border: 1px solid rgba(255, 255, 255, 0.10);
   background: rgba(255, 255, 255, 0.03);
 }
+
 .chipsRow {
   display: flex;
   gap: 8px;
@@ -888,4 +869,106 @@
   .quickCopyTop {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===== Quick Add Autocomplete (NEW) ===== */
+
+.suggestWrap {
+  position: relative;
+}
+
+/* bigger name input (only in quick add) */
+.suggestWrap .textInput {
+  width: 100%;
+  height: 54px;
+  padding: 14px 16px;
+  font-size: 16px;
+  border-radius: 18px;
+}
+
+/* Quick add buttons on the right (Add + Quick copy) */
+.quickAddActions {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.quickCopyButton {
+  height: 40px;     /* match Add */
+  padding: 10px 14px;
+}
+
+@media (max-width: 768px) {
+  .quickAddActions {
+    width: 100%;
+  }
+  .quickCopyButton {
+    width: 100%;
+  }
+}
+
+.suggestMenu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 50;
+
+  border-radius: 16px;
+  overflow: hidden;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 14, 26, 0.96);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.suggestItem {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: rgba(231, 234, 240, 0.95);
+
+  display: grid;
+  gap: 4px;
+
+  transition: background 0.12s ease;
+}
+
+.suggestItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.suggestItem:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.suggestName {
+  font-weight: 850;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.suggestMeta {
+  font-size: 12px;
+  color: rgba(231, 234, 240, 0.72);
+  font-variant-numeric: tabular-nums;
+
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.suggestEmpty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: rgba(231, 234, 240, 0.70);
 }
