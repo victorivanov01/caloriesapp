@@ -886,12 +886,12 @@
   border-radius: 18px;
 }
 
-/* Quick add buttons on the right (Add + Quick copy) */
 .quickAddActions {
+  margin-left: auto;
   display: inline-flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .quickCopyButton {

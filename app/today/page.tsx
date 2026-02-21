@@ -809,12 +809,6 @@ function TodayInner() {
           </div>
         )}
 
-        <div className={styles.controlsRow}>
-          <label className={styles.dateLabel}>
-            Date <DatePicker value={dateStr} onChange={setDateStr} />
-          </label>
-        </div>
-
         <div className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>Quick add</h2>
@@ -963,8 +957,12 @@ function TodayInner() {
                 </select>
               </label>
 
-              {/* ✅ Buttons together: Add + Quick copy */}
+              {/* ✅ Date next to buttons (right side) */}
               <div className={styles.quickAddActions}>
+                <label className={styles.dateLabel}>
+                  Date <DatePicker value={dateStr} onChange={setDateStr} />
+                </label>
+
                 <button className={styles.primaryButton} onClick={addEntry} disabled={loading} type="button">
                   Add
                 </button>
@@ -1023,7 +1021,12 @@ function TodayInner() {
                             <button className={styles.button} onClick={() => startEdit(e)} disabled={loading} type="button">
                               Edit
                             </button>
-                            <button className={styles.dangerButton} onClick={() => deleteEntry(e.id)} disabled={loading} type="button">
+                            <button
+                              className={styles.dangerButton}
+                              onClick={() => deleteEntry(e.id)}
+                              disabled={loading}
+                              type="button"
+                            >
                               delete
                             </button>
                           </td>
@@ -1108,7 +1111,12 @@ function TodayInner() {
 
                         <td className={styles.td}>
                           <div className={styles.editActions}>
-                            <button className={styles.primaryButton} onClick={() => saveEdit(e.id)} disabled={loading} type="button">
+                            <button
+                              className={styles.primaryButton}
+                              onClick={() => saveEdit(e.id)}
+                              disabled={loading}
+                              type="button"
+                            >
                               save
                             </button>
 
