@@ -130,6 +130,21 @@ function colorProtein(percentRaw: number): string {
   return "rgba(16, 185, 129, 0.92)";
 }
 
+function lsKey(meId: string) {
+  return `caloriesapp:friends:selected:${meId}`;
+}
+
+function safeParseIds(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (!Array.isArray(v)) return [];
+    return v.filter((x) => typeof x === "string") as string[];
+  } catch {
+    return [];
+  }
+}
+
 export default function FriendsPage() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const [meId, setMeId] = useState<string | null>(null);
@@ -155,6 +170,9 @@ export default function FriendsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // ✅ only start persisting selection once friends have been loaded at least once
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) window.location.href = "/login";
@@ -168,9 +186,20 @@ export default function FriendsPage() {
 
   useEffect(() => {
     if (!meId) return;
-    loadFriends();
+    void loadFriends();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meId]);
+
+  // ✅ Persist selection to localStorage (no Supabase needed)
+  useEffect(() => {
+    if (!meId) return;
+    if (!friendsLoaded) return;
+    try {
+      localStorage.setItem(lsKey(meId), JSON.stringify(selectedFriendIds));
+    } catch {
+      // ignore storage errors
+    }
+  }, [meId, friendsLoaded, selectedFriendIds]);
 
   useEffect(() => {
     if (selectedFriendIds.length === 0) {
@@ -215,6 +244,7 @@ export default function FriendsPage() {
         setFriends([]);
         setSelectedFriendIds([]);
         setMsg("No profile row found for your user. Go to Group page and click Save once.");
+        setFriendsLoaded(true);
         return;
       }
 
@@ -223,6 +253,7 @@ export default function FriendsPage() {
         setFriends([]);
         setSelectedFriendIds([]);
         setMsg("Set a Group Code in the Group page first.");
+        setFriendsLoaded(true);
         return;
       }
 
@@ -259,16 +290,32 @@ export default function FriendsPage() {
       setFriends(listWithYou);
 
       const valid = new Set(listWithYou.map((f) => f.user_id));
+
+      // ✅ 1) try restore from localStorage
+      let restored: string[] = [];
+      try {
+        restored = safeParseIds(localStorage.getItem(lsKey(meId!)));
+      } catch {
+        restored = [];
+      }
+      const restoredValid = restored.filter((id) => valid.has(id));
+
+      // ✅ 2) otherwise keep current selection if still valid
       const kept = selectedFriendIds.filter((id) => valid.has(id));
 
-      if (kept.length > 0) {
+      if (restoredValid.length > 0) {
+        setSelectedFriendIds(restoredValid);
+      } else if (kept.length > 0) {
         setSelectedFriendIds(kept);
       } else {
-        const you = listWithYou.find((f) => f.user_id === meId);
-        setSelectedFriendIds(you ? [you.user_id] : listWithYou[0] ? [listWithYou[0].user_id] : []);
+        // ✅ default on first run: select ALL
+        setSelectedFriendIds(listWithYou.map((f) => f.user_id));
       }
+
+      setFriendsLoaded(true);
     } catch (e: any) {
       setMsg(e?.message ?? "Error");
+      setFriendsLoaded(true);
     } finally {
       setLoading(false);
     }
@@ -420,11 +467,16 @@ export default function FriendsPage() {
       }
 
       const userIds = Array.from(new Set(rowsRx.map((r) => r.user_id).filter(Boolean)));
-      const { data: profs, error: pErr } = await supabase.from("profiles").select("user_id, display_name").in("user_id", userIds);
+      const { data: profs, error: pErr } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .in("user_id", userIds);
 
       if (pErr) throw pErr;
 
-      const nameById = new Map<string, string>((profs ?? []).map((p: any) => [p.user_id, (p.display_name || "(no name)") as string]));
+      const nameById = new Map<string, string>(
+        (profs ?? []).map((p: any) => [p.user_id, (p.display_name || "(no name)") as string])
+      );
 
       const grouped: Record<string, ReactionRow[]> = {};
       for (const r of rowsRx) {
@@ -522,7 +574,10 @@ export default function FriendsPage() {
       }));
 
       try {
-        const { error } = await supabase.from("entry_reactions").delete().match({ entry_id: entryId, user_id: meId, emoji });
+        const { error } = await supabase
+          .from("entry_reactions")
+          .delete()
+          .match({ entry_id: entryId, user_id: meId, emoji });
         if (error) throw error;
       } catch {
         setReactionsByEntry((prev) => ({ ...prev, [entryId]: [...(prev[entryId] ?? []), already] }));
@@ -566,7 +621,12 @@ export default function FriendsPage() {
                   return (
                     <li key={f.user_id} className={styles.friendItem}>
                       <label className={styles.friendLabel}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleFriend(f.user_id)} className={styles.checkbox} />
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleFriend(f.user_id)}
+                          className={styles.checkbox}
+                        />
                         <span>{f.display_name}</span>
                       </label>
                     </li>
@@ -648,7 +708,10 @@ export default function FriendsPage() {
                                     </span>
                                   </div>
                                   <div className={styles.barTrack}>
-                                    <div className={styles.barFill} style={{ width: `${calPct}%`, background: calColor } as CSSProperties} />
+                                    <div
+                                      className={styles.barFill}
+                                      style={{ width: `${calPct}%`, background: calColor } as CSSProperties}
+                                    />
                                   </div>
                                 </div>
                               ) : null}
@@ -663,7 +726,10 @@ export default function FriendsPage() {
                                     </span>
                                   </div>
                                   <div className={styles.barTrack}>
-                                    <div className={styles.barFill} style={{ width: `${protPct}%`, background: protColor } as CSSProperties} />
+                                    <div
+                                      className={styles.barFill}
+                                      style={{ width: `${protPct}%`, background: protColor } as CSSProperties}
+                                    />
                                   </div>
                                 </div>
                               ) : null}
@@ -801,7 +867,6 @@ export default function FriendsPage() {
                   </tbody>
                 </table>
               </div>
-
             </div>
 
             {loading ? <p className={styles.muted}>Loading…</p> : null}
